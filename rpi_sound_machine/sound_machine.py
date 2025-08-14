@@ -1,0 +1,591 @@
+from pathlib import Path
+import time
+
+from flask import Flask, render_template_string, redirect, url_for, request, send_from_directory, jsonify
+import pygame
+from werkzeug.utils import secure_filename
+
+# Initialize Flask app
+app = Flask(__name__)
+
+# Initialize Pygame mixer
+pygame.mixer.pre_init(44100, -16, 2, 4096)  # Add before pygame.mixer.init()
+pygame.mixer.init()
+pygame.mixer.set_num_channels(16)
+
+# Define the directory where your sound files are stored
+SOUND_DIR = Path(__file__).parent.parent / 'sounds'
+# Define the path for the favorites file
+FAVORITES_FILE = Path(__file__).parent.parent / 'favorites.txt'
+
+# Track currently playing sounds (filenames)
+current_sounds = set()
+# Track pygame Sound objects for stopping
+sound_objects = {}
+
+paused = False  # Global flag for pause state
+last_play_time = None  # Global variable to store the timestamp of the last sound start
+elapsed_time_at_pause = 0  # Global variable to store time elapsed before a pause
+
+# A new HTML template with refined CSS for a clean, consistent layout
+HOME_PAGE_TEMPLATE = """
+<!doctype html>
+<html>
+<head>
+    <title>Raspberry Pi Sound Machine</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="shortcut icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <style>
+        * {
+            -webkit-tap-highlight-color: transparent !important;
+            -webkit-touch-callout: none !important;
+        }
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background-color: #f0f0f0; }
+        .container { 
+            max-width: 600px; 
+            margin: auto; 
+            padding: 20px; 
+            background: white; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            text-align: left;
+        }
+        h1 { color: #333; text-align: center; font-size: 24px; }
+        h2 { color: #333; text-align: center; font-size: 20px; margin-top: 30px; }
+        hr { border: 0; border-top: 1px solid #ccc; margin: 20px 0; }
+        
+        .list-section {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        .file-list { list-style: none; padding: 0; margin: 0; }
+        .file-list-item { 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid #eee; 
+        }
+        .file-list-item:last-child { border-bottom: none; }
+        .file-list-item:hover { background-color: #f9f9f9; }
+
+        .file-name-link {
+            flex-grow: 1;
+            padding: 0;
+            text-decoration: none;
+            color: #333;
+            font-size: 16px;
+            line-height: 1.2;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .file-name-link.active-sound { font-weight: bold; color: #28a745; }
+        .file-name-link.active-sound:hover { color: #218838; }
+
+        .icon-group {
+            display: flex;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .favorite-toggle {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0 10px;
+            text-decoration: none;
+        }
+        .delete-checkbox {
+            transform: scale(1.2);
+            margin-left: 10px;
+        }
+        
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+            margin-bottom: 20px;
+            gap: 20px;
+        }
+        .action-button,
+        .action-button:visited,
+        .action-button:active,
+        .action-button:focus {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            outline: none !important;
+            border-radius: 50%;
+            font-size: 48px;
+            color: #333 !important;
+            cursor: pointer;
+            margin: 0 5px;
+            text-decoration: none !important;
+            appearance: none !important;
+            -webkit-appearance: none !important;
+            -moz-appearance: none !important;
+        }
+        .action-button:hover {
+            background-color: #f5f5f5 !important;
+        }
+        
+        /* New CSS rule to make the stop/pause buttons blue */
+        .action-button.stop-button,
+        .action-button.stop-button:visited,
+        .action-button.stop-button:active,
+        .action-button.stop-button:focus {
+            color: #007BFF !important;
+            background: transparent !important;
+            border: none !important;
+            outline: none !important;
+            box-shadow: none !important;
+        }
+        
+        #play-timer {
+            font-size: 18px;
+            font-weight: bold;
+            color: #555;
+            min-width: 50px;
+            text-align: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Raspberry Pi Sound Machine</h1>
+        
+        <form action="/delete_files" method="post">
+            <div class="action-buttons">
+                <a href="#" id="pause-resume-btn" class="action-button stop-button" title="Pause/Resume All">
+                    {% if paused %}
+                        ▶️
+                    {% else %}
+                        ⏸️
+                    {% endif %}
+                </a>
+                <a href="#" id="stop-btn" class="action-button stop-button" title="Stop All">⏹️</a>
+                <button type="submit" class="action-button delete-button" title="Delete Selected">🗑️</button>
+            </div>
+            <div id="play-timer">00:00:00</div>
+            
+            <div class="list-section">
+                {% if sound_files %}
+                    <ul class="file-list">
+                        {% for sound_file in sound_files %}
+                        <li class="file-list-item">
+                            <a href="#" class="file-name-link {% if sound_file in current_sounds %}active-sound{% endif %}" data-file-name="{{ sound_file }}">
+                                {{ sound_file }}
+                            </a>
+                            <div class="icon-group">
+                                <a href="/toggle_favorite/{{ sound_file }}" class="favorite-toggle">🤍</a>
+                                <input type="checkbox" name="files_to_delete" value="{{ sound_file }}" class="delete-checkbox">
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>No sound files uploaded yet.</p>
+                {% endif %}
+            </div>
+        </form>
+        
+        <h2>Favorites</h2>
+        <div class="list-section">
+            {% if favorites %}
+                <ul class="file-list">
+                    {% for sound_file in favorites %}
+                    <li class="file-list-item">
+                        <a href="#" class="file-name-link {% if sound_file in current_sounds %}active-sound{% endif %}" data-file-name="{{ sound_file }}">
+                            {{ sound_file }}
+                        </a>
+                        <div class="icon-group">
+                            <a href="/toggle_favorite/{{ sound_file }}" class="favorite-toggle">❤️</a>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No favorite sounds yet.</p>
+            {% endif %}
+        </div>
+
+        <div class="upload-form">
+            <h2>Upload Sound Files</h2>
+            <form action="/upload_file" method="post" enctype="multipart/form-data">
+                <div class="upload-input-group">
+                    <input type="file" name="file[]" multiple class="file-input">
+                    <input type="submit" value="Upload" class="upload-button">
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        const playTimer = document.getElementById('play-timer');
+        const pauseResumeBtn = document.getElementById('pause-resume-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const fileLinks = document.querySelectorAll('.file-name-link');
+        
+        let lastPlayTime = {{ last_play_time if last_play_time is not none else 'null' }};
+        let elapsedAtPause = {{ elapsed_time_at_pause }};
+        let timerInterval = null;
+
+        function updateTimer() {
+            let totalElapsedSeconds = elapsedAtPause;
+            if (lastPlayTime) {
+                const now = Date.now() / 1000;
+                totalElapsedSeconds = Math.floor(now - lastPlayTime + elapsedAtPause);
+            }
+            
+            if (totalElapsedSeconds >= 0) {
+                const hours = Math.floor(totalElapsedSeconds / 3600);
+                const minutes = Math.floor((totalElapsedSeconds % 3600) / 60);
+                const seconds = totalElapsedSeconds % 60;
+                
+                const formattedHours = String(hours).padStart(2, '0');
+                const formattedMinutes = String(minutes).padStart(2, '0');
+                const formattedSeconds = String(seconds).padStart(2, '0');
+                
+                playTimer.textContent = formattedHours + ':' + formattedMinutes + ':' + formattedSeconds;
+            } else {
+                playTimer.textContent = '00:00:00';
+            }
+        }
+        
+        function startTimer() {
+            if (!timerInterval) {
+                timerInterval = setInterval(updateTimer, 1000);
+            }
+        }
+
+        function pauseTimer() {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+
+        function stopTimer() {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            playTimer.textContent = '00:00:00';
+        }
+        
+        // Initial timer setup
+        if (lastPlayTime) {
+            startTimer();
+        } else {
+            stopTimer();
+        }
+
+        // Asynchronous handling of sound playback
+        
+        // Sound file links
+        fileLinks.forEach(link => {
+            link.addEventListener('click', async (e) => {
+                e.preventDefault();
+                const fileName = e.target.dataset.fileName;
+                const response = await fetch(`/toggle_play/${fileName}`);
+                const data = await response.json();
+                
+                // Update UI based on response
+                lastPlayTime = data.last_play_time;
+                elapsedAtPause = data.elapsed_time_at_pause;
+                
+                // Update timer
+                if (lastPlayTime) {
+                    startTimer();
+                } else {
+                    stopTimer();
+                }
+
+                // Update active sound class for all links
+                fileLinks.forEach(l => l.classList.remove('active-sound'));
+                if (data.active_sounds) {
+                    data.active_sounds.forEach(activeFile => {
+                        const activeLink = document.querySelector(`[data-file-name="${activeFile}"]`);
+                        if (activeLink) {
+                            activeLink.classList.add('active-sound');
+                        }
+                    });
+                }
+            });
+        });
+
+        // Pause/Resume button
+        pauseResumeBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const response = await fetch('/pause_resume_all_link');
+            const data = await response.json();
+            
+            // Update UI based on response
+            lastPlayTime = data.last_play_time;
+            elapsedAtPause = data.elapsed_time_at_pause;
+            
+            if (data.paused) {
+                pauseResumeBtn.innerHTML = '▶️';
+                pauseTimer(); // Only pauses the countdown
+            } else {
+                pauseResumeBtn.innerHTML = '⏸️';
+                startTimer();
+            }
+        });
+        
+        // Stop button
+        stopBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const response = await fetch('/stop');
+            const data = await response.json();
+            
+            // Update UI based on response
+            lastPlayTime = data.last_play_time;
+            elapsedAtPause = data.elapsed_time_at_pause;
+            
+            pauseResumeBtn.innerHTML = '⏸️';
+            fileLinks.forEach(l => l.classList.remove('active-sound'));
+            stopTimer(); // Resets the timer to 00:00:00
+        });
+    </script>
+</body>
+</html>
+"""
+
+# Helper function to read favorites from the file
+def get_favorites():
+    if not FAVORITES_FILE.is_file():
+        return set()
+    with open(FAVORITES_FILE, 'r') as f:
+        return set(line.strip() for line in f)
+
+# Helper function to save favorites to the file
+def save_favorites(favorites_set):
+    with open(FAVORITES_FILE, 'w') as f:
+        for filename in sorted(list(favorites_set)):
+            f.write(f"{filename}\n")
+
+# Get a list of all sound files in the 'sounds' directory
+def get_sound_files():
+    return [f.name for f in SOUND_DIR.glob('*') if f.is_file()]
+
+# FIXED: Swapped pause/resume logic
+@app.route('/pause_resume_all_link')
+def pause_resume_all_link():
+    global paused, last_play_time, elapsed_time_at_pause
+    if not paused:
+        # Pause all sounds
+        pygame.mixer.pause()
+        paused = True
+        if last_play_time is not None:
+            elapsed_time_at_pause += time.time() - last_play_time
+            last_play_time = None
+    else:
+        # Resume all sounds
+        pygame.mixer.unpause()
+        paused = False
+        if elapsed_time_at_pause > 0:
+            last_play_time = time.time()
+    
+    return jsonify(paused=paused, last_play_time=last_play_time, elapsed_time_at_pause=elapsed_time_at_pause)
+
+# FIXED: Swapped pause/resume logic
+@app.route('/pause_resume_all', methods=['POST'])
+def pause_resume_all():
+    global paused, last_play_time, elapsed_time_at_pause
+    if not paused:
+        # Pause all sounds
+        pygame.mixer.pause()
+        paused = True
+        if last_play_time is not None:
+            elapsed_time_at_pause += time.time() - last_play_time
+            last_play_time = None
+    else:
+        # Resume all sounds
+        pygame.mixer.unpause()
+        paused = False
+        if elapsed_time_at_pause > 0:
+            last_play_time = time.time()
+    return jsonify(paused=paused, last_play_time=last_play_time, elapsed_time_at_pause=elapsed_time_at_pause)
+
+@app.route('/')
+def home():
+    global current_sounds, paused
+    all_files = get_sound_files()
+    favorites_set = get_favorites()
+    
+    # Separate the files into favorites and non-favorites
+    favorite_files = sorted([f for f in all_files if f in favorites_set])
+    non_favorite_files = sorted([f for f in all_files if f not in favorites_set])
+    
+    return render_template_string(HOME_PAGE_TEMPLATE,
+                                  sound_files=non_favorite_files,
+                                  favorites=favorite_files,
+                                  current_sounds=current_sounds,
+                                  paused=paused,
+                                  last_play_time=last_play_time,
+                                  elapsed_time_at_pause=elapsed_time_at_pause)
+
+@app.route('/toggle_play/<sound_file>')
+def toggle_play(sound_file):
+    global current_sounds, sound_objects, last_play_time, elapsed_time_at_pause, paused
+    sound_path = SOUND_DIR / sound_file
+
+    if sound_file in current_sounds:
+        if sound_file in sound_objects:
+            sound_objects[sound_file].stop()
+            del sound_objects[sound_file]
+        current_sounds.remove(sound_file)
+        
+        if not current_sounds:
+            last_play_time = None
+            elapsed_time_at_pause = 0
+            paused = False
+    else:
+        if sound_path.is_file():
+            try:
+                snd = pygame.mixer.Sound(str(sound_path))
+                snd.play(loops=-1)
+                
+                # Add the new sound without stopping others
+                current_sounds.add(sound_file)
+                sound_objects[sound_file] = snd
+                
+                # Reset the timer as a new sound is starting
+                last_play_time = time.time()
+                elapsed_time_at_pause = 0
+                paused = False
+            except pygame.error as e:
+                print(f"Error playing sound: {e}")
+        else:
+            print("Error: Sound file not found.")
+
+    return jsonify(last_play_time=last_play_time, elapsed_time_at_pause=elapsed_time_at_pause, active_sounds=list(current_sounds), paused=paused)
+
+@app.route('/play_pause/<sound_file>', methods=['POST'])
+def play_pause(sound_file):
+    global current_sounds, sound_objects, last_play_time
+    sound_path = SOUND_DIR / sound_file
+
+    if sound_file in current_sounds:
+        if sound_file in sound_objects:
+            sound_objects[sound_file].stop()
+            del sound_objects[sound_file]
+        current_sounds.remove(sound_file)
+    else:
+        if sound_path.is_file():
+            try:
+                snd = pygame.mixer.Sound(str(sound_path))
+                snd.play(loops=-1)
+                current_sounds.add(sound_file)
+                sound_objects[sound_file] = snd
+                last_play_time = time.time()
+            except pygame.error as e:
+                print(f"Error playing sound: {e}")
+        else:
+            print("Error: Sound file not found.")
+    return redirect(url_for('home'))
+
+@app.route('/play_selected', methods=['POST'])
+def play_selected():
+    global current_sounds, sound_objects, last_play_time
+    files_to_play = request.form.getlist('files_to_play')
+    for snd in sound_objects.values():
+        snd.stop()
+    current_sounds.clear()
+    sound_objects.clear()
+    for filename in files_to_play:
+        sound_path = SOUND_DIR / filename
+        if sound_path.is_file():
+            try:
+                snd = pygame.mixer.Sound(str(sound_path))
+                snd.play(loops=-1)
+                current_sounds.add(filename)
+                sound_objects[filename] = snd
+            except pygame.error as e:
+                print(f"Error playing sound: {e}")
+    if files_to_play:
+        last_play_time = time.time()
+    else:
+        last_play_time = None
+        
+    return redirect(url_for('home'))
+
+@app.route('/stop')
+def stop_sound():
+    global current_sounds, sound_objects, paused, last_play_time, elapsed_time_at_pause
+    for snd in sound_objects.values():
+        snd.stop()
+    current_sounds.clear()
+    sound_objects.clear()
+    paused = False
+    last_play_time = None
+    elapsed_time_at_pause = 0
+    return jsonify(last_play_time=last_play_time, elapsed_time_at_pause=elapsed_time_at_pause, active_sounds=list(current_sounds), paused=paused)
+
+@app.route('/upload_file', methods=['POST'])
+def upload_file():
+    if 'file[]' not in request.files:
+        return redirect(url_for('home'))
+    
+    files = request.files.getlist('file[]')
+    
+    for file in files:
+        if file.filename != '':
+            filename = secure_filename(file.filename)
+            file_path = SOUND_DIR / filename
+            file.save(file_path)
+    
+    return redirect(url_for('home'))
+
+@app.route('/delete_files', methods=['POST'])
+def delete_files():
+    global current_sounds, sound_objects
+    files_to_delete = request.form.getlist('files_to_delete')
+    if files_to_delete:
+        favorites_set = get_favorites()
+        for filename in files_to_delete:
+            file_path = SOUND_DIR / filename
+            if file_path.is_file():
+                try:
+                    if filename in current_sounds and filename in sound_objects:
+                        sound_objects[filename].stop()
+                        del sound_objects[filename]
+                        current_sounds.remove(filename)
+                    file_path.unlink()
+                    print(f"Deleted file: {filename}")
+                    if filename in favorites_set:
+                        favorites_set.remove(filename)
+                except OSError as e:
+                    print(f"Error deleting file {filename}: {e}")
+        save_favorites(favorites_set)
+    return redirect(url_for('home'))
+
+@app.route('/toggle_favorite/<sound_file>')
+def toggle_favorite(sound_file):
+    favorites_set = get_favorites()
+    if sound_file in favorites_set:
+        favorites_set.remove(sound_file)
+    else:
+        favorites_set.add(sound_file)
+    save_favorites(favorites_set)
+    return redirect(url_for('home'))
+
+@app.route('/favicon.ico')
+def favicon():
+    static_folder = Path(app.root_path).joinpath('static')
+    return send_from_directory(str(static_folder), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
+if __name__ == '__main__':
+    SOUND_DIR.mkdir(exist_ok=True)
+    if not FAVORITES_FILE.is_file():
+        FAVORITES_FILE.touch()
+    
+    app.run(host='0.0.0.0', port=5000, debug=True)
