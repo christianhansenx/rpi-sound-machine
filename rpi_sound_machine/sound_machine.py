@@ -1,5 +1,7 @@
 from pathlib import Path
 import time
+import json
+from threading import Timer
 
 from flask import Flask, render_template_string, redirect, url_for, request, send_from_directory, jsonify
 import pygame
@@ -17,6 +19,8 @@ pygame.mixer.set_num_channels(16)
 SOUND_DIR = Path(__file__).parent.parent / 'sounds'
 # Define the path for the favorites file
 FAVORITES_FILE = Path(__file__).parent.parent / 'favorites.txt'
+# Define the path for the volume file
+VOLUME_FILE = Path(__file__).parent.parent / 'volume.json'
 
 # Track currently playing sounds (filenames)
 current_sounds = set()
@@ -26,8 +30,54 @@ sound_objects = {}
 paused = False  # Global flag for pause state
 last_play_time = None  # Global variable to store the timestamp of the last sound start
 elapsed_time_at_pause = 0  # Global variable to store time elapsed before a pause
+global_volume = 0.5  # Global variable for volume control (0.0 to 1.0)
+volume_save_timer = None  # Timer object for delayed volume saving
 
-# A new HTML template with refined CSS for a clean, consistent layout
+# Helper function to read favorites from the file
+def get_favorites():
+    if not FAVORITES_FILE.is_file():
+        return set()
+    with open(FAVORITES_FILE, 'r') as f:
+        return set(line.strip() for line in f)
+
+# Helper function to save favorites to the file
+def save_favorites(favorites_set):
+    with open(FAVORITES_FILE, 'w') as f:
+        for filename in sorted(list(favorites_set)):
+            f.write(f"{filename}\n")
+
+# Helper function to load volume from file
+def load_volume():
+    global global_volume
+    if VOLUME_FILE.is_file():
+        try:
+            with open(VOLUME_FILE, 'r') as f:
+                data = json.load(f)
+                global_volume = float(data.get('volume', 0.5))
+        except (IOError, json.JSONDecodeError):
+            print("Error loading volume file, using default 0.5")
+    else:
+        print("Volume file not found, using default 0.5")
+
+# Helper function to save volume to file
+def save_volume():
+    with open(VOLUME_FILE, 'w') as f:
+        json.dump({'volume': global_volume}, f)
+    print(f"Volume saved to file: {global_volume}")
+
+# Function to schedule a volume save
+def schedule_volume_save():
+    global volume_save_timer
+    if volume_save_timer:
+        volume_save_timer.cancel()
+    volume_save_timer = Timer(5.0, save_volume)
+    volume_save_timer.start()
+
+# Get a list of all sound files in the 'sounds' directory
+def get_sound_files():
+    return [f.name for f in SOUND_DIR.glob('*') if f.is_file()]
+
+# A new HTML template with refined CSS for a clean, consistent layout and a volume slider
 HOME_PAGE_TEMPLATE = """
 <!doctype html>
 <html>
@@ -159,6 +209,21 @@ HOME_PAGE_TEMPLATE = """
             text-align: center;
             margin-top: 10px;
         }
+
+        .volume-control-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        #volume-slider {
+            width: 200px;
+            margin: 0 10px;
+        }
+        .volume-label {
+            font-size: 16px;
+            color: #555;
+        }
     </style>
 </head>
 <body>
@@ -178,6 +243,11 @@ HOME_PAGE_TEMPLATE = """
                 <button type="submit" class="action-button delete-button" title="Delete Selected">🗑️</button>
             </div>
             <div id="play-timer">00:00:00</div>
+            
+            <div class="volume-control-container">
+                <span class="volume-label">🔊</span>
+                <input type="range" min="0" max="1" step="0.01" value="{{ global_volume }}" id="volume-slider" title="Volume Control">
+            </div>
             
             <div class="list-section">
                 {% if sound_files %}
@@ -236,6 +306,7 @@ HOME_PAGE_TEMPLATE = """
         const pauseResumeBtn = document.getElementById('pause-resume-btn');
         const stopBtn = document.getElementById('stop-btn');
         const fileLinks = document.querySelectorAll('.file-name-link');
+        const volumeSlider = document.getElementById('volume-slider');
         
         let lastPlayTime = {{ last_play_time if last_play_time is not none else 'null' }};
         let elapsedAtPause = {{ elapsed_time_at_pause }};
@@ -354,27 +425,16 @@ HOME_PAGE_TEMPLATE = """
             fileLinks.forEach(l => l.classList.remove('active-sound'));
             stopTimer(); // Resets the timer to 00:00:00
         });
+
+        // Volume slider
+        volumeSlider.addEventListener('input', async (e) => {
+            const newVolume = e.target.value;
+            await fetch(`/set_volume/${newVolume}`);
+        });
     </script>
 </body>
 </html>
 """
-
-# Helper function to read favorites from the file
-def get_favorites():
-    if not FAVORITES_FILE.is_file():
-        return set()
-    with open(FAVORITES_FILE, 'r') as f:
-        return set(line.strip() for line in f)
-
-# Helper function to save favorites to the file
-def save_favorites(favorites_set):
-    with open(FAVORITES_FILE, 'w') as f:
-        for filename in sorted(list(favorites_set)):
-            f.write(f"{filename}\n")
-
-# Get a list of all sound files in the 'sounds' directory
-def get_sound_files():
-    return [f.name for f in SOUND_DIR.glob('*') if f.is_file()]
 
 # FIXED: Swapped pause/resume logic
 @app.route('/pause_resume_all_link')
@@ -417,7 +477,7 @@ def pause_resume_all():
 
 @app.route('/')
 def home():
-    global current_sounds, paused
+    global current_sounds, paused, global_volume
     all_files = get_sound_files()
     favorites_set = get_favorites()
     
@@ -431,11 +491,25 @@ def home():
                                   current_sounds=current_sounds,
                                   paused=paused,
                                   last_play_time=last_play_time,
-                                  elapsed_time_at_pause=elapsed_time_at_pause)
+                                  elapsed_time_at_pause=elapsed_time_at_pause,
+                                  global_volume=global_volume)
+
+# NEW: Route to handle volume changes
+@app.route('/set_volume/<float:volume_level>')
+def set_volume(volume_level):
+    global global_volume
+    global_volume = volume_level
+    # Set the volume for all currently playing sounds
+    for snd in sound_objects.values():
+        snd.set_volume(global_volume)
+    
+    schedule_volume_save()
+    
+    return jsonify(success=True, volume=global_volume)
 
 @app.route('/toggle_play/<sound_file>')
 def toggle_play(sound_file):
-    global current_sounds, sound_objects, last_play_time, elapsed_time_at_pause, paused
+    global current_sounds, sound_objects, last_play_time, elapsed_time_at_pause, paused, global_volume
     sound_path = SOUND_DIR / sound_file
 
     if sound_file in current_sounds:
@@ -453,6 +527,7 @@ def toggle_play(sound_file):
             try:
                 snd = pygame.mixer.Sound(str(sound_path))
                 snd.play(loops=-1)
+                snd.set_volume(global_volume)  # Set the volume when a new sound starts
                 
                 # Add the new sound without stopping others
                 current_sounds.add(sound_file)
@@ -587,5 +662,8 @@ if __name__ == '__main__':
     SOUND_DIR.mkdir(exist_ok=True)
     if not FAVORITES_FILE.is_file():
         FAVORITES_FILE.touch()
+    
+    # Load volume on startup
+    load_volume()
     
     app.run(host='0.0.0.0', port=5000, debug=True)
