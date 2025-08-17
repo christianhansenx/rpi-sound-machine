@@ -67,10 +67,12 @@ class SshClient:
                 if int(local_mtime) > int(remote_mtime):  # Local file is newer
                     print(f'Updating remote file: {remote_file}')
                     self._sftp.put(str(local_file), str(remote_file))
+                    self._sftp.utime(str(remote_file), (local_mtime, local_mtime))
             except OSError:
                 # File does not exist remotely, so upload it
                 print(f'Uploading new file: {remote_file}')
                 self._sftp.put(str(local_file), str(remote_file))
+                self._sftp.utime(str(remote_file), (local_mtime, local_mtime))
 
         self._delete_extra_remote_files(local_dir, remote_dir, exclude)
         _upload_dir(local_dir, remote_dir)
