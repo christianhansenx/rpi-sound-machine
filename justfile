@@ -28,12 +28,12 @@ tmux:
 
 # Check linting with ruff
 ruff:
-    @uv run --dev --quiet ruff check
+    @uv run --quiet ruff check
 
 # Fix linting with ruff
 ruff-fix:
-    @uv run --dev --quiet ruff check --fix
+    @uv run --quiet ruff check --fix
 
 # Run unit tests
 test:
-    @uv run --project rpi_sound_machine --active python -m pytest -vvv
+    @uv run --quiet --project rpi_sound_machine --active python -m pytest -vvv
