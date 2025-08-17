@@ -8,8 +8,9 @@ dependencies = []
 
 [dependency-groups]
 dev = [
-    "pytest>=8.4.1",
     "ruff>=0.12.8",
+    "pytest>=8.3.2",
+    "pytest-mock>=3.14.0",
 ]
 
 [tool.ruff]
@@ -25,3 +26,8 @@ ignore = [
 
 [tool.ruff.lint.flake8-quotes]
 inline-quotes = "single"
+
+[tool.pytest.ini_options]
+testpaths = [
+    "test",
+]

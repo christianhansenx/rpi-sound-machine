@@ -20,7 +20,7 @@ def mock_pygame():
 @pytest.fixture
 def app():
     # Now it's safe to import the app
-    from rpi_sound_machine.sound_machine import app as flask_app
+    from sound_machine import app as flask_app
     yield flask_app
 
 @pytest.fixture
@@ -39,18 +39,18 @@ def setup_test_environment(tmp_path, monkeypatch):
     with open(volume_file, 'w') as f:
         json.dump({'volume': 0.5}, f)
 
-    import rpi_sound_machine.sound_machine
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'SOUND_DIR', sounds_dir)
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'FAVORITES_FILE', favorites_file)
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'VOLUME_FILE', volume_file)
+    import sound_machine
+    monkeypatch.setattr(sound_machine, 'SOUND_DIR', sounds_dir)
+    monkeypatch.setattr(sound_machine, 'FAVORITES_FILE', favorites_file)
+    monkeypatch.setattr(sound_machine, 'VOLUME_FILE', volume_file)
 
     # Reset global state before each test
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'current_sounds', set())
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'sound_objects', {})
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'paused', False)
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'last_play_time', None)
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'elapsed_time_at_pause', 0)
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'global_volume', 0.5)
+    monkeypatch.setattr(sound_machine, 'current_sounds', set())
+    monkeypatch.setattr(sound_machine, 'sound_objects', {})
+    monkeypatch.setattr(sound_machine, 'paused', False)
+    monkeypatch.setattr(sound_machine, 'last_play_time', None)
+    monkeypatch.setattr(sound_machine, 'elapsed_time_at_pause', 0)
+    monkeypatch.setattr(sound_machine, 'global_volume', 0.5)
 
     # Create a dummy sound file
     (sounds_dir / "test.wav").touch()
@@ -157,5 +157,5 @@ def test_set_volume(client, setup_test_environment):
     # The volume saving is on a timer, so we can't easily test the file write
     # without more complex mocking of the Timer.
     # We will trust the set_volume function sets the global var correctly.
-    import rpi_sound_machine.sound_machine
-    assert rpi_sound_machine.sound_machine.global_volume == 0.8
+    import sound_machine
+    assert sound_machine.global_volume == 0.8
