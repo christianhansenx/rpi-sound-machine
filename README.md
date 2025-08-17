@@ -6,14 +6,18 @@
 
 Sometimes there's a very low-frequency noise in my apartment, which I believe is coming from the building's heating system. It's disturbing my sleep, so I now use a sound machine to play relaxing sounds that help drown out the low hum.
 
-Actually, the problem with low-frequency hum is quite widespread: [Noise & Health](https://journals.lww.com/nohe/fulltext/2004/06230/low_frequency_noise_and_annoyance.6.aspx)
+In general the issue about low-frequency hum is a quite widespread problem: [Noise & Health](https://journals.lww.com/nohe/fulltext/2004/06230/low_frequency_noise_and_annoyance.6.aspx)
 
 ## User Guide
 
-Connect Raspberry Pi to a loudspeaker (loudspeaker with aux input).<br>
-Copy **rpi_sound_machine** folder to Raspberry Pi and run it.
+Connect Raspberry Pi to a loudspeaker (loudspeaker with aux input).
 
-The Raspberry Pi Sound Machine make it possible to control sound playing on Raspberry Pi through a web interface (*hostname*:5000).
+Install uv python package installer: [Install uv on RPI with Snap](https://snapcraft.io/install/astral-uv/raspbian)
+
+Copy **rpi_sound_machine** folder to Raspberry Pi and run it with uv in **rpi_sound_machine** folder:<br>
+```uv run sound_machine.py```
+
+The Raspberry Pi Sound Machine makes it possible to control sound playing on Raspberry Pi through a web interface: *raspberry-pi-hostname*:5000
 
 ### Web Interface
 
@@ -49,11 +53,9 @@ I found some good sounds here: [Pixabay Free Sounds](https://pixabay.com/sound-e
 
 ## Development guide
 
-### Install UV
+### Install UV on PC
 
-[Install uv on RPI with Snap](https://snapcraft.io/install/astral-uv/raspbian)
-
-[Install uv on PC](https://github.com/christianhansenx/hansen-developer-notes/blob/main/tools-and-apps/uv/README.MD)
+Install **uv** according to: [installation of uv](https://github.com/christianhansenx/hansen-developer-notes/blob/main/tools-and-apps/uv/README.MD)
 
 ### Install "just" on PC
 
