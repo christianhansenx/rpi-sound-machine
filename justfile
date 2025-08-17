@@ -36,4 +36,4 @@ ruff-fix:
 
 # Run unit tests
 test:
-    @PYTHONPATH=${PYTHONPATH:-}:./rpi_sound_machine uv run --quiet -- python -m pytest
+    @uv run --project rpi_sound_machine --active python -m pytest -vvv
