@@ -101,7 +101,7 @@ class SshClient:
                         if not local_item.is_dir():
                             self._remove_remote_dir(remote_item)
                         else:
-                            self._delete_extra_remote_files(local_path,remote_item, exclude)
+                            self._delete_extra_remote_files(local_item, remote_item, exclude)
                     elif not local_item.exists():
                         self._sftp.remove(str(remote_item))
                 except OSError:
