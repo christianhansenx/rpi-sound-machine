@@ -33,3 +33,7 @@ ruff:
 # Fix linting with ruff
 ruff-fix:
     @uv run --quiet ruff check --fix
+
+# Run unit tests
+test:
+    @PYTHONPATH=$PYTHONPATH:./rpi_sound_machine uv run --quiet -- python -m pytest
