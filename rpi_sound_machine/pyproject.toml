@@ -8,14 +8,3 @@ dependencies = [
     "flask>=3.1.1",
     "pygame>=2.6.1",
 ]
-
-[project.optional-dependencies]
-test = [
-    "pytest>=8.3.2",
-    "pytest-mock>=3.14.0",
-]
-
-[tool.pytest.ini_options]
-testpaths = [
-    "../test",
-]
