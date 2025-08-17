@@ -9,6 +9,8 @@ dependencies = []
 [dependency-groups]
 dev = [
     "ruff>=0.12.8",
+    "pytest>=8.3.2",
+    "pytest-mock>=3.14.0",
 ]
 
 [tool.ruff]
