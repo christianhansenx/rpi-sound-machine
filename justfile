@@ -36,4 +36,4 @@ ruff-fix:
 
 # Run unit tests
 test:
-    @uv run --dev --project rpi_sound_machine --active python -m pytest -vvv
+    @uv run --project rpi_sound_machine --active python -m pytest -vvv

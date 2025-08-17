@@ -39,18 +39,18 @@ def setup_test_environment(tmp_path, monkeypatch):
     with open(volume_file, 'w') as f:
         json.dump({'volume': 0.5}, f)
 
-    import rpi_sound_machine.sound_machine
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'SOUND_DIR', sounds_dir)
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'FAVORITES_FILE', favorites_file)
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'VOLUME_FILE', volume_file)
+    from rpi_sound_machine import sound_machine
+    monkeypatch.setattr(sound_machine, 'SOUND_DIR', sounds_dir)
+    monkeypatch.setattr(sound_machine, 'FAVORITES_FILE', favorites_file)
+    monkeypatch.setattr(sound_machine, 'VOLUME_FILE', volume_file)
 
     # Reset global state before each test
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'current_sounds', set())
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'sound_objects', {})
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'paused', False)
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'last_play_time', None)
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'elapsed_time_at_pause', 0)
-    monkeypatch.setattr(rpi_sound_machine.sound_machine, 'global_volume', 0.5)
+    monkeypatch.setattr(sound_machine, 'current_sounds', set())
+    monkeypatch.setattr(sound_machine, 'sound_objects', {})
+    monkeypatch.setattr(sound_machine, 'paused', False)
+    monkeypatch.setattr(sound_machine, 'last_play_time', None)
+    monkeypatch.setattr(sound_machine, 'elapsed_time_at_pause', 0)
+    monkeypatch.setattr(sound_machine, 'global_volume', 0.5)
 
     # Create a dummy sound file
     (sounds_dir / "test.wav").touch()
@@ -105,7 +105,7 @@ def test_pause_resume(client, setup_test_environment):
 
 def test_stop_all(client, setup_test_environment):
     client.get('/toggle_play/test.wav')
-
+    
     response = client.get('/stop')
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -131,7 +131,7 @@ def test_delete_file(client, setup_test_environment):
 
 def test_toggle_favorite(client, setup_test_environment):
     favorites_file = setup_test_environment["favorites_file"]
-
+    
     # Add to favorites
     response = client.get('/toggle_favorite/test.wav')
     assert response.status_code == 302 # Redirect
@@ -144,7 +144,10 @@ def test_toggle_favorite(client, setup_test_environment):
     with open(favorites_file, 'r') as f:
         assert "test.wav" not in f.read()
 
-def test_set_volume(client, setup_test_environment):
+def test_set_volume(client, setup_test_environment, mocker):
+    # Mock the schedule_volume_save function to prevent file writing
+    mocker.patch('rpi_sound_machine.sound_machine.schedule_volume_save')
+
     volume_file = setup_test_environment["volume_file"]
     client.get('/toggle_play/test.wav')
 
@@ -157,5 +160,5 @@ def test_set_volume(client, setup_test_environment):
     # The volume saving is on a timer, so we can't easily test the file write
     # without more complex mocking of the Timer.
     # We will trust the set_volume function sets the global var correctly.
-    import rpi_sound_machine.sound_machine
-    assert rpi_sound_machine.sound_machine.global_volume == 0.8
+    from rpi_sound_machine import sound_machine
+    assert sound_machine.global_volume == 0.8

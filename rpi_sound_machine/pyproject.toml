@@ -8,3 +8,9 @@ dependencies = [
     "flask>=3.1.1",
     "pygame>=2.6.1",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+    "pytest-mock>=3.14.1",
+]
