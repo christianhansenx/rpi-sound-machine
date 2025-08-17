@@ -1,5 +1,6 @@
 """SSH Client."""
 import getpass
+import stat
 import types
 from contextlib import suppress
 from pathlib import Path, PurePosixPath
@@ -66,10 +67,12 @@ class SshClient:
                 if local_mtime > remote_mtime:  # Local file is newer
                     print(f'Updating remote file: {remote_file}')
                     self._sftp.put(str(local_file), str(remote_file))
+                    self._sftp.utime(str(remote_file), (local_mtime, local_mtime))
             except OSError:
                 # File does not exist remotely, so upload it
                 print(f'Uploading new file: {remote_file}')
                 self._sftp.put(str(local_file), str(remote_file))
+                self._sftp.utime(str(remote_file), (local_mtime, local_mtime))
 
         self._delete_extra_remote_files(local_dir, remote_dir, exclude)
         _upload_dir(local_dir, remote_dir)
@@ -94,7 +97,7 @@ class SshClient:
 
                 try:
                     attr = self._sftp.stat(str(remote_item))
-                    if str(attr.st_mode).startswith('16877'):  # Directory
+                    if stat.S_ISDIR(attr.st_mode):  # Directory
                         if not local_item.is_dir():
                             self._remove_remote_dir(remote_item)
                         else:
@@ -110,7 +113,7 @@ class SshClient:
         for item in self._sftp.listdir(str(path)):
             remote_item = path / item
             attr = self._sftp.stat(str(remote_item))
-            if str(attr.st_mode).startswith('16877'):  # Directory
+            if stat.S_ISDIR(attr.st_mode):  # Directory
                 self._remove_remote_dir(remote_item)
             else:
                 self._sftp.remove(str(remote_item))
