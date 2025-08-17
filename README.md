@@ -15,7 +15,7 @@ Connect Raspberry Pi to a loudspeaker (loudspeaker with aux input).
 Install uv python package installer: [Install uv on RPI with Snap](https://snapcraft.io/install/astral-uv/raspbian)
 
 Copy **rpi_sound_machine** folder to Raspberry Pi and run it with uv in **rpi_sound_machine** folder:<br>
-```uv run sound_machine.py```
+```uv run --no-group dev sound_machine.py```
 
 The Raspberry Pi Sound Machine makes it possible to control sound playing on Raspberry Pi through a web interface: *raspberry-pi-hostname*:5000
 

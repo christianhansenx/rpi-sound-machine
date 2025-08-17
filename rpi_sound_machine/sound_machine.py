@@ -1,10 +1,10 @@
-from pathlib import Path
-import time
 import json
+import time
+from pathlib import Path
 from threading import Timer
 
-from flask import Flask, render_template_string, redirect, url_for, request, send_from_directory, jsonify
 import pygame
+from flask import Flask, jsonify, redirect, render_template_string, request, send_from_directory, url_for
 from werkzeug.utils import secure_filename
 
 # Initialize Flask app
@@ -37,33 +37,32 @@ volume_save_timer = None  # Timer object for delayed volume saving
 def get_favorites():
     if not FAVORITES_FILE.is_file():
         return set()
-    with open(FAVORITES_FILE, 'r') as f:
+    with open(FAVORITES_FILE) as f:
         return set(line.strip() for line in f)
 
 # Helper function to save favorites to the file
 def save_favorites(favorites_set):
     with open(FAVORITES_FILE, 'w') as f:
-        for filename in sorted(list(favorites_set)):
-            f.write(f"{filename}\n")
+        f.writelines(f'{filename}\n' for filename in sorted(list(favorites_set)))
 
 # Helper function to load volume from file
 def load_volume():
     global global_volume
     if VOLUME_FILE.is_file():
         try:
-            with open(VOLUME_FILE, 'r') as f:
+            with open(VOLUME_FILE) as f:
                 data = json.load(f)
                 global_volume = float(data.get('volume', 0.5))
-        except (IOError, json.JSONDecodeError):
-            print("Error loading volume file, using default 0.5")
+        except (OSError, json.JSONDecodeError):
+            print('Error loading volume file, using default 0.5')
     else:
-        print("Volume file not found, using default 0.5")
+        print('Volume file not found, using default 0.5')
 
 # Helper function to save volume to file
 def save_volume():
     with open(VOLUME_FILE, 'w') as f:
         json.dump({'volume': global_volume}, f)
-    print(f"Volume saved to file: {global_volume}")
+    print(f'Volume saved to file: {global_volume}')
 
 # Function to schedule a volume save
 def schedule_volume_save():
@@ -453,7 +452,7 @@ def pause_resume_all_link():
         paused = False
         if elapsed_time_at_pause > 0:
             last_play_time = time.time()
-    
+
     return jsonify(paused=paused, last_play_time=last_play_time, elapsed_time_at_pause=elapsed_time_at_pause)
 
 # FIXED: Swapped pause/resume logic
@@ -480,11 +479,11 @@ def home():
     global current_sounds, paused, global_volume
     all_files = get_sound_files()
     favorites_set = get_favorites()
-    
+
     # Separate the files into favorites and non-favorites
     favorite_files = sorted([f for f in all_files if f in favorites_set])
     non_favorite_files = sorted([f for f in all_files if f not in favorites_set])
-    
+
     return render_template_string(HOME_PAGE_TEMPLATE,
                                   sound_files=non_favorite_files,
                                   favorites=favorite_files,
@@ -502,9 +501,9 @@ def set_volume(volume_level):
     # Set the volume for all currently playing sounds
     for snd in sound_objects.values():
         snd.set_volume(global_volume)
-    
+
     schedule_volume_save()
-    
+
     return jsonify(success=True, volume=global_volume)
 
 @app.route('/toggle_play/<sound_file>')
@@ -517,30 +516,29 @@ def toggle_play(sound_file):
             sound_objects[sound_file].stop()
             del sound_objects[sound_file]
         current_sounds.remove(sound_file)
-        
+
         if not current_sounds:
             last_play_time = None
             elapsed_time_at_pause = 0
             paused = False
+    elif sound_path.is_file():
+        try:
+            snd = pygame.mixer.Sound(str(sound_path))
+            snd.play(loops=-1)
+            snd.set_volume(global_volume)  # Set the volume when a new sound starts
+
+            # Add the new sound without stopping others
+            current_sounds.add(sound_file)
+            sound_objects[sound_file] = snd
+
+            # Reset the timer as a new sound is starting
+            last_play_time = time.time()
+            elapsed_time_at_pause = 0
+            paused = False
+        except pygame.error as e:
+            print(f'Error playing sound: {e}')
     else:
-        if sound_path.is_file():
-            try:
-                snd = pygame.mixer.Sound(str(sound_path))
-                snd.play(loops=-1)
-                snd.set_volume(global_volume)  # Set the volume when a new sound starts
-                
-                # Add the new sound without stopping others
-                current_sounds.add(sound_file)
-                sound_objects[sound_file] = snd
-                
-                # Reset the timer as a new sound is starting
-                last_play_time = time.time()
-                elapsed_time_at_pause = 0
-                paused = False
-            except pygame.error as e:
-                print(f"Error playing sound: {e}")
-        else:
-            print("Error: Sound file not found.")
+        print('Error: Sound file not found.')
 
     return jsonify(last_play_time=last_play_time, elapsed_time_at_pause=elapsed_time_at_pause, active_sounds=list(current_sounds), paused=paused)
 
@@ -554,18 +552,17 @@ def play_pause(sound_file):
             sound_objects[sound_file].stop()
             del sound_objects[sound_file]
         current_sounds.remove(sound_file)
+    elif sound_path.is_file():
+        try:
+            snd = pygame.mixer.Sound(str(sound_path))
+            snd.play(loops=-1)
+            current_sounds.add(sound_file)
+            sound_objects[sound_file] = snd
+            last_play_time = time.time()
+        except pygame.error as e:
+            print(f'Error playing sound: {e}')
     else:
-        if sound_path.is_file():
-            try:
-                snd = pygame.mixer.Sound(str(sound_path))
-                snd.play(loops=-1)
-                current_sounds.add(sound_file)
-                sound_objects[sound_file] = snd
-                last_play_time = time.time()
-            except pygame.error as e:
-                print(f"Error playing sound: {e}")
-        else:
-            print("Error: Sound file not found.")
+        print('Error: Sound file not found.')
     return redirect(url_for('home'))
 
 @app.route('/play_selected', methods=['POST'])
@@ -585,12 +582,12 @@ def play_selected():
                 current_sounds.add(filename)
                 sound_objects[filename] = snd
             except pygame.error as e:
-                print(f"Error playing sound: {e}")
+                print(f'Error playing sound: {e}')
     if files_to_play:
         last_play_time = time.time()
     else:
         last_play_time = None
-        
+
     return redirect(url_for('home'))
 
 @app.route('/stop')
@@ -609,15 +606,15 @@ def stop_sound():
 def upload_file():
     if 'file[]' not in request.files:
         return redirect(url_for('home'))
-    
+
     files = request.files.getlist('file[]')
-    
+
     for file in files:
         if file.filename != '':
             filename = secure_filename(file.filename)
             file_path = SOUND_DIR / filename
             file.save(file_path)
-    
+
     return redirect(url_for('home'))
 
 @app.route('/delete_files', methods=['POST'])
@@ -635,11 +632,11 @@ def delete_files():
                         del sound_objects[filename]
                         current_sounds.remove(filename)
                     file_path.unlink()
-                    print(f"Deleted file: {filename}")
+                    print(f'Deleted file: {filename}')
                     if filename in favorites_set:
                         favorites_set.remove(filename)
                 except OSError as e:
-                    print(f"Error deleting file {filename}: {e}")
+                    print(f'Error deleting file {filename}: {e}')
         save_favorites(favorites_set)
     return redirect(url_for('home'))
 
@@ -662,8 +659,8 @@ if __name__ == '__main__':
     SOUND_DIR.mkdir(exist_ok=True)
     if not FAVORITES_FILE.is_file():
         FAVORITES_FILE.touch()
-    
+
     # Load volume on startup
     load_volume()
-    
+
     app.run(host='0.0.0.0', port=5000, debug=True)
