@@ -1,15 +1,27 @@
 [project]
 name = "rpi-sound-machine"
 version = "0.1.0"
-description = "Add your description here"
+description = "A simple sound machine for Raspberry Pi"
 readme = "README.md"
-requires-python = ">=3.13"
-dependencies = []
+requires-python = ">=3.11, <4.0"
+authors = [
+    { name = "Your Name", email = "you@example.com" }
+]
+dependencies = [
+    "Flask>=2.0",
+    "pygame>=2.0",
+]
 
-[dependency-groups]
+[project.optional-dependencies]
 dev = [
     "ruff>=0.12.8",
+    "pytest",
+    "pytest-cov",
+    "pytest-mock",
 ]
+
+[project.scripts]
+rpi-sound-machine = "rpi_sound_machine.sound_machine:main"
 
 [tool.ruff]
 line-length = 130
@@ -24,3 +36,6 @@ ignore = [
 
 [tool.ruff.lint.flake8-quotes]
 inline-quotes = "single"
+
+[tool.ruff.lint.per-file-ignores]
+"test/**/*.py" = ["S101", "ARG001"]
