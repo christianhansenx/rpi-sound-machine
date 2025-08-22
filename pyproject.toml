@@ -1,27 +1,15 @@
 [project]
 name = "rpi-sound-machine"
 version = "0.1.0"
-description = "A simple sound machine for Raspberry Pi"
+description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.11, <4.0"
-authors = [
-    { name = "Your Name", email = "you@example.com" }
-]
-dependencies = [
-    "Flask>=2.0",
-    "pygame>=2.0",
-]
+requires-python = ">=3.13"
+dependencies = []
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "ruff>=0.12.8",
-    "pytest",
-    "pytest-cov",
-    "pytest-mock",
 ]
-
-[project.scripts]
-rpi-sound-machine = "rpi_sound_machine.sound_machine:main"
 
 [tool.ruff]
 line-length = 130
@@ -29,13 +17,15 @@ line-length = 130
 [tool.ruff.lint]
 select = ["ALL", "Q"]
 ignore = [
-    "T201", # print
     "D203", # incorrect-blank-line-before-class (conflicting with D211 `no-blank-line-before-class`)
     "D213", # multi-line-summary-second-line (conflicting with D212 `multi-line-summary-first-line`)
+    "T201", # print
+]
+
+[tool.ruff.lint.per-file-ignores]
+"test/**/*.py" = [
+    "S101",  # Use of `assert` detected (it's OK to use assert in pytest functions))
 ]
 
 [tool.ruff.lint.flake8-quotes]
 inline-quotes = "single"
-
-[tool.ruff.lint.per-file-ignores]
-"test/**/*.py" = ["S101", "ARG001"]
