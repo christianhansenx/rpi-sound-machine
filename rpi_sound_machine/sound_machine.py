@@ -38,6 +38,16 @@ class SoundControl:
         self.last_play_time = None
         self.sound_objects = {}  # Track pygame Sound objects for stopping
 
+    def get_state_as_dict(self):
+        """Returns the current state of the SoundControl as a JSON-serializable dictionary."""
+        return {
+            'paused': self.paused,
+            'last_play_time': self.last_play_time,
+            'elapsed_time_at_pause': self.elapsed_time_at_pause,
+            'active_sounds': list(self.current_sounds),
+            'volume': self.global_volume,
+        }
+
     def load_volume(self):
         if VOLUME_FILE.is_file():
             try:
@@ -76,7 +86,6 @@ class SoundControl:
 sound_control = SoundControl()
 
 
-# A new HTML template with refined CSS for a clean, consistent layout and a volume slider
 HOME_PAGE_TEMPLATE = """
 <!doctype html>
 <html>
@@ -91,12 +100,12 @@ HOME_PAGE_TEMPLATE = """
             -webkit-touch-callout: none !important;
         }
         body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background-color: #f0f0f0; }
-        .container { 
-            max-width: 600px; 
-            margin: auto; 
-            padding: 20px; 
-            background: white; 
-            border-radius: 10px; 
+        .container {
+            max-width: 600px;
+            margin: auto;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             text-align: left;
         }
@@ -111,12 +120,12 @@ HOME_PAGE_TEMPLATE = """
             margin-top: 10px;
         }
         .file-list { list-style: none; padding: 0; margin: 0; }
-        .file-list-item { 
-            display: flex; 
-            align-items: center; 
+        .file-list-item {
+            display: flex;
+            align-items: center;
             justify-content: space-between;
             padding: 10px;
-            border-bottom: 1px solid #eee; 
+            border-bottom: 1px solid #eee;
         }
         .file-list-item:last-child { border-bottom: none; }
         .file-list-item:hover { background-color: #f9f9f9; }
@@ -368,8 +377,8 @@ HOME_PAGE_TEMPLATE = """
                 const data = await response.json();
                 
                 // Update UI based on response
-                lastPlayTime = data.sound_control.last_play_time;
-                elapsedAtPause = data.sound_control.elapsed_time_at_pause;
+                lastPlayTime = data.last_play_time;
+                elapsedAtPause = data.elapsed_time_at_pause;
                 
                 // Update timer
                 if (lastPlayTime) {
@@ -398,10 +407,10 @@ HOME_PAGE_TEMPLATE = """
             const data = await response.json();
             
             // Update UI based on response
-            lastPlayTime = data.sound_control.last_play_time;
-            elapsedAtPause = data.sound_control.elapsed_time_at_pause;
+            lastPlayTime = data.last_play_time;
+            elapsedAtPause = data.elapsed_time_at_pause;
             
-            if (data.sound_control.paused) {
+            if (data.paused) {
                 pauseResumeBtn.innerHTML = '▶️';
                 pauseTimer(); // Only pauses the countdown
             } else {
@@ -417,8 +426,8 @@ HOME_PAGE_TEMPLATE = """
             const data = await response.json();
             
             // Update UI based on response
-            lastPlayTime = data.sound_control.last_play_time;
-            elapsedAtPause = data.sound_control.elapsed_time_at_pause;
+            lastPlayTime = data.last_play_time;
+            elapsedAtPause = data.elapsed_time_at_pause;
             
             pauseResumeBtn.innerHTML = '⏸️';
             fileLinks.forEach(l => l.classList.remove('active-sound'));
@@ -435,42 +444,6 @@ HOME_PAGE_TEMPLATE = """
 </html>
 """
 
-
-@app.route('/pause_resume_all_link')
-def pause_resume_all_link():
-    if not sound_control.paused:
-        # Pause all sounds
-        pygame.mixer.pause()
-        sound_control.paused = True
-        if sound_control.last_play_time is not None:
-            sound_control.elapsed_time_at_pause += time.time() - sound_control.last_play_time
-            sound_control.last_play_time = None
-    else:
-        # Resume all sounds
-        pygame.mixer.unpause()
-        sound_control.paused = False
-        if sound_control.elapsed_time_at_pause > 0:
-            sound_control.last_play_time = time.time()
-
-    return jsonify(paused=sound_control.paused, last_play_time=sound_control.last_play_time, elapsed_time_at_pause=sound_control.elapsed_time_at_pause)
-
-
-@app.route('/pause_resume_all', methods=['POST'])
-def pause_resume_all():
-    if not sound_control.paused:
-        # Pause all sounds
-        pygame.mixer.pause()
-        sound_control.paused = True
-        if sound_control.last_play_time is not None:
-            sound_control.elapsed_time_at_pause += time.time() - sound_control.last_play_time
-            sound_control.last_play_time = None
-    else:
-        # Resume all sounds
-        pygame.mixer.unpause()
-        sound_control.paused = False
-        if sound_control.elapsed_time_at_pause > 0:
-            sound_control.last_play_time = time.time()
-    return jsonify(paused=sound_control.paused, last_play_time=sound_control.last_play_time, elapsed_time_at_pause=sound_control.elapsed_time_at_pause)
 
 @app.route('/')
 def home():
@@ -490,16 +463,56 @@ def home():
     )
 
 
+@app.route('/pause_resume_all_link')
+def pause_resume_all_link():
+    if not sound_control.paused:
+        # Pause all sounds
+        pygame.mixer.pause()
+        sound_control.paused = True
+        if sound_control.last_play_time is not None:
+            sound_control.elapsed_time_at_pause += time.time() - sound_control.last_play_time
+            sound_control.last_play_time = None
+    else:
+        # Resume all sounds
+        pygame.mixer.unpause()
+        sound_control.paused = False
+        if sound_control.elapsed_time_at_pause > 0:
+            sound_control.last_play_time = time.time()
+
+    return jsonify(sound_control.get_state_as_dict())
+
+
+@app.route('/pause_resume_all', methods=['POST'])
+def pause_resume_all():
+    if not sound_control.paused:
+        # Pause all sounds
+        pygame.mixer.pause()
+        sound_control.paused = True
+        if sound_control.last_play_time is not None:
+            sound_control.elapsed_time_at_pause += time.time() - sound_control.last_play_time
+            sound_control.last_play_time = None
+    else:
+        # Resume all sounds
+        pygame.mixer.unpause()
+        sound_control.paused = False
+        if sound_control.elapsed_time_at_pause > 0:
+            sound_control.last_play_time = time.time()
+    return jsonify(sound_control.get_state_as_dict())
+
+
 @app.route('/set_volume/<float:volume_level>')
 def set_volume(volume_level):
-    sound_control.global_volume = volume_level
     # Set the volume for all currently playing sounds
+    sound_control.global_volume = volume_level
     for snd in sound_control.sound_objects.values():
         snd.set_volume(sound_control.global_volume)
 
     sound_control.schedule_volume_save()
 
-    return jsonify(success=True, volume=sound_control.global_volume)
+    data = sound_control.get_state_as_dict()
+    data['success'] = True  # For future validation feature
+    return jsonify(data)
+
 
 @app.route('/toggle_play/<sound_file>')
 def toggle_play(sound_file):
@@ -534,7 +547,7 @@ def toggle_play(sound_file):
     else:
         print('Error: Sound file not found.')
 
-    return jsonify(last_play_time=sound_control.last_play_time, elapsed_time_at_pause=sound_control.elapsed_time_at_pause, active_sounds=list(sound_control.current_sounds), paused=sound_control.paused)
+    return jsonify(sound_control.get_state_as_dict())
 
 
 @app.route('/play_pause/<sound_file>', methods=['POST'])
@@ -584,6 +597,7 @@ def play_selected():
 
     return redirect(url_for('home'))
 
+
 @app.route('/stop')
 def stop_sound():
     for snd in sound_control.sound_objects.values():
@@ -593,12 +607,8 @@ def stop_sound():
     sound_control.paused = False
     sound_control.last_play_time = None
     sound_control.elapsed_time_at_pause = 0
-    return jsonify(
-        last_play_time=sound_control.last_play_time,
-        elapsed_time_at_pause=sound_control.elapsed_time_at_pause,
-        active_sounds=list(sound_control.current_sounds),
-        paused=sound_control.paused,
-    )
+    return jsonify(sound_control.get_state_as_dict())
+
 
 @app.route('/upload_file', methods=['POST'])
 def upload_file() -> BaseResponse:
@@ -614,6 +624,7 @@ def upload_file() -> BaseResponse:
             file.save(file_path)
 
     return redirect(url_for('home'))
+
 
 @app.route('/delete_files', methods=['POST'])
 def delete_files() -> BaseResponse:
@@ -637,6 +648,7 @@ def delete_files() -> BaseResponse:
         sound_control.save_favorites(favorites_set)
     return redirect(url_for('home'))
 
+
 @app.route('/toggle_favorite/<sound_file>')
 def toggle_favorite(sound_file: str) -> BaseResponse:
     favorites_set = sound_control.get_favorites()
@@ -647,10 +659,12 @@ def toggle_favorite(sound_file: str) -> BaseResponse:
     sound_control.save_favorites(favorites_set)
     return redirect(url_for('home'))
 
+
 @app.route('/favicon.ico')
 def favicon() -> BaseResponse:
     static_folder = Path(app.root_path).joinpath('static')
     return send_from_directory(str(static_folder), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
 
 if __name__ == '__main__':
     SOUND_DIR.mkdir(exist_ok=True)
