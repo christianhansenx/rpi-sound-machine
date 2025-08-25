@@ -1,3 +1,4 @@
+"""Raspberry Pi Sound Machine - A web-based sound machine using Flask and Pygame."""
 import json
 import time
 from pathlib import Path
@@ -7,7 +8,6 @@ import pygame
 from flask import Flask, jsonify, redirect, render_template_string, request, send_from_directory, url_for
 from werkzeug.utils import secure_filename
 from werkzeug.wrappers import Response as BaseResponse
-
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -28,8 +28,10 @@ DEFAULT_GLOBAL_VOLUME = 0.5  # 0.0 to 1.0
 
 
 class SoundControl:
+    """Class to manage sound control state and operations."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize control settings."""
         self.global_volume = DEFAULT_GLOBAL_VOLUME
         self.volume_save_timer = None  # Timer object for delayed volume saving
         self.paused = False
@@ -38,8 +40,8 @@ class SoundControl:
         self.last_play_time = None
         self.sound_objects = {}  # Track pygame Sound objects for stopping
 
-    def get_state_as_dict(self):
-        """Returns the current state of the SoundControl as a JSON-serializable dictionary."""
+    def get_state_as_dict(self) -> dict[str, object]:
+        """Return the current state of the SoundControl as a JSON-serializable dictionary."""
         return {
             'paused': self.paused,
             'last_play_time': self.last_play_time,
@@ -48,10 +50,10 @@ class SoundControl:
             'volume': self.global_volume,
         }
 
-    def load_volume(self):
+    def load_volume(self) -> None:
         if VOLUME_FILE.is_file():
             try:
-                with open(VOLUME_FILE) as f:
+                with Path.open(VOLUME_FILE) as f:
                     data = json.load(f)
                     self.global_volume = float(data.get('volume', DEFAULT_GLOBAL_VOLUME))
             except (OSError, json.JSONDecodeError):
@@ -59,28 +61,28 @@ class SoundControl:
         else:
             print(f'Volume file not found, using default {DEFAULT_GLOBAL_VOLUME}')
 
-    def save_volume(self):
-        with open(VOLUME_FILE, 'w') as f:
+    def save_volume(self) -> None:
+        with Path.open(VOLUME_FILE, 'w') as f:
             json.dump({'volume': self.global_volume}, f)
         print(f'Volume saved to file: {self.global_volume}')
 
-    def schedule_volume_save(self):
+    def schedule_volume_save(self) -> None:
         if self.volume_save_timer:
             self.volume_save_timer.cancel()
         self.volume_save_timer = Timer(5.0, self.save_volume)
         self.volume_save_timer.start()
 
     @staticmethod
-    def get_favorites():
+    def get_favorites() -> set[str]:
         if not FAVORITES_FILE.is_file():
             return set()
-        with open(FAVORITES_FILE) as f:
-            return set(line.strip() for line in f)
+        with Path.open(FAVORITES_FILE) as f:
+            return {line.strip() for line in f}
 
     @staticmethod
-    def save_favorites(favorites_set):
-        with open(FAVORITES_FILE, 'w') as f:
-            f.writelines(f'{filename}\n' for filename in sorted(list(favorites_set)))
+    def save_favorites(favorites_set: set[str]) -> None:
+        with Path.open(FAVORITES_FILE, 'w') as f:
+            f.writelines(f'{filename}\n' for filename in sorted(favorites_set))
 
 
 sound_control = SoundControl()
@@ -112,7 +114,7 @@ HOME_PAGE_TEMPLATE = """
         h1 { color: #333; text-align: center; font-size: 24px; }
         h2 { color: #333; text-align: center; font-size: 20px; margin-top: 30px; }
         hr { border: 0; border-top: 1px solid #ccc; margin: 20px 0; }
-        
+
         .list-section {
             border: 1px solid #ddd;
             border-radius: 8px;
@@ -161,7 +163,7 @@ HOME_PAGE_TEMPLATE = """
             transform: scale(1.2);
             margin-left: 10px;
         }
-        
+
         .action-buttons {
             display: flex;
             justify-content: center;
@@ -196,7 +198,7 @@ HOME_PAGE_TEMPLATE = """
         .action-button:hover {
             background-color: #f5f5f5 !important;
         }
-        
+
         /* New CSS rule to make the stop/pause buttons blue */
         .action-button.stop-button,
         .action-button.stop-button:visited,
@@ -208,7 +210,7 @@ HOME_PAGE_TEMPLATE = """
             outline: none !important;
             box-shadow: none !important;
         }
-        
+
         #play-timer {
             font-size: 18px;
             font-weight: bold;
@@ -237,7 +239,7 @@ HOME_PAGE_TEMPLATE = """
 <body>
     <div class="container">
         <h1>🎵 Raspberry Pi Sound Machine</h1>
-        
+
         <form action="/delete_files" method="post">
             <div class="action-buttons">
                 <a href="#" id="pause-resume-btn" class="action-button stop-button" title="Pause/Resume All">
@@ -251,18 +253,33 @@ HOME_PAGE_TEMPLATE = """
                 <button type="submit" class="action-button delete-button" title="Delete Selected">🗑️</button>
             </div>
             <div id="play-timer">00:00:00</div>
-            
+
             <div class="volume-control-container">
                 <span class="volume-label">🔊</span>
-                <input type="range" min="0" max="1" step="0.01" value="{{ sound_control.global_volume }}" id="volume-slider" title="Volume Control">
+                <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value="{{ sound_control.global_volume }}"
+                    id="volume-slider"
+                    title="Volume Control"
+                >
             </div>
-            
+
             <div class="list-section">
                 {% if sound_files %}
                     <ul class="file-list">
                         {% for sound_file in sound_files %}
                         <li class="file-list-item">
-                            <a href="#" class="file-name-link {% if sound_file in sound_control.current_sounds %}active-sound{% endif %}" data-file-name="{{ sound_file }}">
+                            <a href="#"
+                                class="file-name-link
+                                    {%- if sound_file in sound_control.current_sounds -%}
+                                    active-sound
+                                    {%- endif -%}
+                                "
+                                data-file-name="{{ sound_file }}"
+                            >
                                 {{ sound_file }}
                             </a>
                             <div class="icon-group">
@@ -277,14 +294,19 @@ HOME_PAGE_TEMPLATE = """
                 {% endif %}
             </div>
         </form>
-        
+
         <h2>Favorites</h2>
         <div class="list-section">
             {% if favorites %}
                 <ul class="file-list">
                     {% for sound_file in favorites %}
                     <li class="file-list-item">
-                        <a href="#" class="file-name-link {% if sound_file in sound_control.current_sounds %}active-sound{% endif %}" data-file-name="{{ sound_file }}">
+                        <a href="#" class="file-name-link
+                            {%- if sound_file in sound_control.current_sounds -%}
+                            active-sound
+                            {%- endif -%}"
+                            data-file-name="{{ sound_file }}"
+                        >
                             {{ sound_file }}
                         </a>
                         <div class="icon-group">
@@ -308,14 +330,14 @@ HOME_PAGE_TEMPLATE = """
             </form>
         </div>
     </div>
-    
+
     <script>
         const playTimer = document.getElementById('play-timer');
         const pauseResumeBtn = document.getElementById('pause-resume-btn');
         const stopBtn = document.getElementById('stop-btn');
         const fileLinks = document.querySelectorAll('.file-name-link');
         const volumeSlider = document.getElementById('volume-slider');
-        
+
         let lastPlayTime = {{ sound_control.last_play_time if sound_control.last_play_time is not none else 'null' }};
         let elapsedAtPause = {{ sound_control.elapsed_time_at_pause }};
         let timerInterval = null;
@@ -326,22 +348,22 @@ HOME_PAGE_TEMPLATE = """
                 const now = Date.now() / 1000;
                 totalElapsedSeconds = Math.floor(now - lastPlayTime + elapsedAtPause);
             }
-            
+
             if (totalElapsedSeconds >= 0) {
                 const hours = Math.floor(totalElapsedSeconds / 3600);
                 const minutes = Math.floor((totalElapsedSeconds % 3600) / 60);
                 const seconds = totalElapsedSeconds % 60;
-                
+
                 const formattedHours = String(hours).padStart(2, '0');
                 const formattedMinutes = String(minutes).padStart(2, '0');
                 const formattedSeconds = String(seconds).padStart(2, '0');
-                
+
                 playTimer.textContent = formattedHours + ':' + formattedMinutes + ':' + formattedSeconds;
             } else {
                 playTimer.textContent = '00:00:00';
             }
         }
-        
+
         function startTimer() {
             if (!timerInterval) {
                 timerInterval = setInterval(updateTimer, 1000);
@@ -358,7 +380,7 @@ HOME_PAGE_TEMPLATE = """
             timerInterval = null;
             playTimer.textContent = '00:00:00';
         }
-        
+
         // Initial timer setup
         if (lastPlayTime) {
             startTimer();
@@ -367,7 +389,7 @@ HOME_PAGE_TEMPLATE = """
         }
 
         // Asynchronous handling of sound playback
-        
+
         // Sound file links
         fileLinks.forEach(link => {
             link.addEventListener('click', async (e) => {
@@ -375,11 +397,11 @@ HOME_PAGE_TEMPLATE = """
                 const fileName = e.target.dataset.fileName;
                 const response = await fetch(`/toggle_play/${fileName}`);
                 const data = await response.json();
-                
+
                 // Update UI based on response
                 lastPlayTime = data.last_play_time;
                 elapsedAtPause = data.elapsed_time_at_pause;
-                
+
                 // Update timer
                 if (lastPlayTime) {
                     startTimer();
@@ -405,11 +427,11 @@ HOME_PAGE_TEMPLATE = """
             e.preventDefault();
             const response = await fetch('/pause_resume_all_link');
             const data = await response.json();
-            
+
             // Update UI based on response
             lastPlayTime = data.last_play_time;
             elapsedAtPause = data.elapsed_time_at_pause;
-            
+
             if (data.paused) {
                 pauseResumeBtn.innerHTML = '▶️';
                 pauseTimer(); // Only pauses the countdown
@@ -418,17 +440,17 @@ HOME_PAGE_TEMPLATE = """
                 startTimer();
             }
         });
-        
+
         // Stop button
         stopBtn.addEventListener('click', async (e) => {
             e.preventDefault();
             const response = await fetch('/stop');
             const data = await response.json();
-            
+
             // Update UI based on response
             lastPlayTime = data.last_play_time;
             elapsedAtPause = data.elapsed_time_at_pause;
-            
+
             pauseResumeBtn.innerHTML = '⏸️';
             fileLinks.forEach(l => l.classList.remove('active-sound'));
             stopTimer(); // Resets the timer to 00:00:00
@@ -446,7 +468,7 @@ HOME_PAGE_TEMPLATE = """
 
 
 @app.route('/')
-def home():
+def home() -> BaseResponse:
     all_files = [f.name for f in SOUND_DIR.glob('*') if f.is_file()]
     favorites_set = sound_control.get_favorites()
 
@@ -464,7 +486,7 @@ def home():
 
 
 @app.route('/pause_resume_all_link')
-def pause_resume_all_link():
+def pause_resume_all_link() -> BaseResponse:
     if not sound_control.paused:
         # Pause all sounds
         pygame.mixer.pause()
@@ -483,7 +505,7 @@ def pause_resume_all_link():
 
 
 @app.route('/pause_resume_all', methods=['POST'])
-def pause_resume_all():
+def pause_resume_all() -> BaseResponse:
     if not sound_control.paused:
         # Pause all sounds
         pygame.mixer.pause()
@@ -501,7 +523,7 @@ def pause_resume_all():
 
 
 @app.route('/set_volume/<float:volume_level>')
-def set_volume(volume_level):
+def set_volume(volume_level: float) -> BaseResponse:
     # Set the volume for all currently playing sounds
     sound_control.global_volume = volume_level
     for snd in sound_control.sound_objects.values():
@@ -515,7 +537,7 @@ def set_volume(volume_level):
 
 
 @app.route('/toggle_play/<sound_file>')
-def toggle_play(sound_file):
+def toggle_play(sound_file: str) -> BaseResponse:
     sound_path = SOUND_DIR / sound_file
 
     if sound_file in sound_control.current_sounds:
@@ -550,31 +572,8 @@ def toggle_play(sound_file):
     return jsonify(sound_control.get_state_as_dict())
 
 
-@app.route('/play_pause/<sound_file>', methods=['POST'])
-def play_pause(sound_file):
-    sound_path = SOUND_DIR / sound_file
-
-    if sound_file in sound_control.current_sounds:
-        if sound_file in sound_control.sound_objects:
-            sound_control.sound_objects[sound_file].stop()
-            del sound_control.sound_objects[sound_file]
-        sound_control.current_sounds.remove(sound_file)
-    elif sound_path.is_file():
-        try:
-            snd = pygame.mixer.Sound(str(sound_path))
-            snd.play(loops=-1)
-            sound_control.current_sounds.add(sound_file)
-            sound_control.sound_objects[sound_file] = snd
-            sound_control.last_play_time = time.time()
-        except pygame.error as e:
-            print(f'Error playing sound: {e}')
-    else:
-        print('Error: Sound file not found.')
-    return redirect(url_for('home'))
-
-
 @app.route('/play_selected', methods=['POST'])
-def play_selected():
+def play_selected() -> BaseResponse:
     files_to_play = request.form.getlist('files_to_play')
     for snd in sound_control.sound_objects.values():
         snd.stop()
@@ -599,7 +598,7 @@ def play_selected():
 
 
 @app.route('/stop')
-def stop_sound():
+def stop_sound() -> BaseResponse:
     for snd in sound_control.sound_objects.values():
         snd.stop()
     sound_control.current_sounds.clear()
