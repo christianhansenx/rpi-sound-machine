@@ -59,13 +59,11 @@ def setup_test_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> d
     monkeypatch.setattr(sound_machine, 'VOLUME_FILE', volume_file)
 
     monkeypatch.setattr(sound_machine.sound_control, 'global_volume', 0.5)
-
-    # Reset global state before each test
-    monkeypatch.setattr(sound_machine, 'current_sounds', set())
-    monkeypatch.setattr(sound_machine, 'sound_objects', {})
-    monkeypatch.setattr(sound_machine, 'paused', False)
-    monkeypatch.setattr(sound_machine, 'last_play_time', None)
-    monkeypatch.setattr(sound_machine, 'elapsed_time_at_pause', 0)
+    monkeypatch.setattr(sound_machine.sound_control, 'paused', False)
+    monkeypatch.setattr(sound_machine.sound_control, 'current_sounds', set())
+    monkeypatch.setattr(sound_machine.sound_control, 'elapsed_time_at_pause', 0)
+    monkeypatch.setattr(sound_machine.sound_control, 'last_play_time', None)
+    monkeypatch.setattr(sound_machine.sound_control, 'sound_objects', {})
 
     # Create a dummy sound file
     (sounds_dir / 'test.wav').touch()
