@@ -17,6 +17,7 @@ line-length = 130
 [tool.ruff.lint]
 select = ["ALL", "Q"]
 ignore = [
+    "D103", # Missing docstring in public function
     "D203", # incorrect-blank-line-before-class (conflicting with D211 `no-blank-line-before-class`)
     "D213", # multi-line-summary-second-line (conflicting with D212 `multi-line-summary-first-line`)
     "T201", # print

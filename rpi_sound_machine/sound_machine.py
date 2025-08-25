@@ -6,6 +6,8 @@ from threading import Timer
 import pygame
 from flask import Flask, jsonify, redirect, render_template_string, request, send_from_directory, url_for
 from werkzeug.utils import secure_filename
+from werkzeug.wrappers import Response as BaseResponse
+
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -27,50 +29,57 @@ current_sounds = set()
 # Track pygame Sound objects for stopping
 sound_objects = {}
 
+DEFAULT_GLOBAL_VOLUME = 0.5  # 0.0 to 1.0
+
 paused = False  # Global flag for pause state
 last_play_time = None  # Global variable to store the timestamp of the last sound start
 elapsed_time_at_pause = 0  # Global variable to store time elapsed before a pause
-global_volume = 0.5  # Global variable for volume control (0.0 to 1.0)
 volume_save_timer = None  # Timer object for delayed volume saving
 
-# Helper function to read favorites from the file
-def get_favorites():
-    if not FAVORITES_FILE.is_file():
-        return set()
-    with open(FAVORITES_FILE) as f:
-        return set(line.strip() for line in f)
 
-# Helper function to save favorites to the file
-def save_favorites(favorites_set):
-    with open(FAVORITES_FILE, 'w') as f:
-        f.writelines(f'{filename}\n' for filename in sorted(list(favorites_set)))
+class SoundControl:
 
-# Helper function to load volume from file
-def load_volume():
-    global global_volume
-    if VOLUME_FILE.is_file():
-        try:
-            with open(VOLUME_FILE) as f:
-                data = json.load(f)
-                global_volume = float(data.get('volume', 0.5))
-        except (OSError, json.JSONDecodeError):
-            print('Error loading volume file, using default 0.5')
-    else:
-        print('Volume file not found, using default 0.5')
+    def __init__(self):
+        self.global_volume = DEFAULT_GLOBAL_VOLUME
+        self.volume_save_timer = None
 
-# Helper function to save volume to file
-def save_volume():
-    with open(VOLUME_FILE, 'w') as f:
-        json.dump({'volume': global_volume}, f)
-    print(f'Volume saved to file: {global_volume}')
+    def load_volume(self):
+        if VOLUME_FILE.is_file():
+            try:
+                with open(VOLUME_FILE) as f:
+                    data = json.load(f)
+                    self.global_volume = float(data.get('volume', DEFAULT_GLOBAL_VOLUME))
+            except (OSError, json.JSONDecodeError):
+                print(f'Error loading volume file, using default {DEFAULT_GLOBAL_VOLUME}')
+        else:
+            print(f'Volume file not found, using default {DEFAULT_GLOBAL_VOLUME}')
 
-# Function to schedule a volume save
-def schedule_volume_save():
-    global volume_save_timer
-    if volume_save_timer:
-        volume_save_timer.cancel()
-    volume_save_timer = Timer(5.0, save_volume)
-    volume_save_timer.start()
+    def save_volume(self):
+        with open(VOLUME_FILE, 'w') as f:
+            json.dump({'volume': self.global_volume}, f)
+        print(f'Volume saved to file: {self.global_volume}')
+
+    def schedule_volume_save(self):
+        if self.volume_save_timer:
+            self.volume_save_timer.cancel()
+        self.volume_save_timer = Timer(5.0, sound_control.save_volume)
+        self.volume_save_timer.start()
+
+    @staticmethod
+    def get_favorites():
+        if not FAVORITES_FILE.is_file():
+            return set()
+        with open(FAVORITES_FILE) as f:
+            return set(line.strip() for line in f)
+
+    @staticmethod
+    def save_favorites(favorites_set):
+        with open(FAVORITES_FILE, 'w') as f:
+            f.writelines(f'{filename}\n' for filename in sorted(list(favorites_set)))
+
+
+sound_control = SoundControl()
+
 
 # Get a list of all sound files in the 'sounds' directory
 def get_sound_files():
@@ -245,7 +254,7 @@ HOME_PAGE_TEMPLATE = """
             
             <div class="volume-control-container">
                 <span class="volume-label">🔊</span>
-                <input type="range" min="0" max="1" step="0.01" value="{{ global_volume }}" id="volume-slider" title="Volume Control">
+                <input type="range" min="0" max="1" step="0.01" value="{{ sound_control.global_volume }}" id="volume-slider" title="Volume Control">
             </div>
             
             <div class="list-section">
@@ -476,39 +485,38 @@ def pause_resume_all():
 
 @app.route('/')
 def home():
-    global current_sounds, paused, global_volume
+    global current_sounds, paused
     all_files = get_sound_files()
-    favorites_set = get_favorites()
+    favorites_set = sound_control.get_favorites()
 
     # Separate the files into favorites and non-favorites
     favorite_files = sorted([f for f in all_files if f in favorites_set])
     non_favorite_files = sorted([f for f in all_files if f not in favorites_set])
 
-    return render_template_string(HOME_PAGE_TEMPLATE,
+    return render_template_string(HOME_PAGE_TEMPLATE, sound_control=sound_control,
                                   sound_files=non_favorite_files,
                                   favorites=favorite_files,
                                   current_sounds=current_sounds,
                                   paused=paused,
                                   last_play_time=last_play_time,
                                   elapsed_time_at_pause=elapsed_time_at_pause,
-                                  global_volume=global_volume)
+)
 
-# NEW: Route to handle volume changes
+
 @app.route('/set_volume/<float:volume_level>')
 def set_volume(volume_level):
-    global global_volume
-    global_volume = volume_level
+    sound_control.global_volume = volume_level
     # Set the volume for all currently playing sounds
     for snd in sound_objects.values():
-        snd.set_volume(global_volume)
+        snd.set_volume(sound_control.global_volume)
 
-    schedule_volume_save()
+    sound_control.schedule_volume_save()
 
-    return jsonify(success=True, volume=global_volume)
+    return jsonify(success=True, volume=sound_control.global_volume)
 
 @app.route('/toggle_play/<sound_file>')
 def toggle_play(sound_file):
-    global current_sounds, sound_objects, last_play_time, elapsed_time_at_pause, paused, global_volume
+    global current_sounds, sound_objects, last_play_time, elapsed_time_at_pause, paused
     sound_path = SOUND_DIR / sound_file
 
     if sound_file in current_sounds:
@@ -525,7 +533,7 @@ def toggle_play(sound_file):
         try:
             snd = pygame.mixer.Sound(str(sound_path))
             snd.play(loops=-1)
-            snd.set_volume(global_volume)  # Set the volume when a new sound starts
+            snd.set_volume(sound_control.global_volume)  # Set the volume when a new sound starts
 
             # Add the new sound without stopping others
             current_sounds.add(sound_file)
@@ -600,10 +608,15 @@ def stop_sound():
     paused = False
     last_play_time = None
     elapsed_time_at_pause = 0
-    return jsonify(last_play_time=last_play_time, elapsed_time_at_pause=elapsed_time_at_pause, active_sounds=list(current_sounds), paused=paused)
+    return jsonify(
+        last_play_time=last_play_time,
+        elapsed_time_at_pause=elapsed_time_at_pause,
+        active_sounds=list(current_sounds),
+        paused=paused,
+    )
 
 @app.route('/upload_file', methods=['POST'])
-def upload_file():
+def upload_file() -> BaseResponse:
     if 'file[]' not in request.files:
         return redirect(url_for('home'))
 
@@ -618,11 +631,10 @@ def upload_file():
     return redirect(url_for('home'))
 
 @app.route('/delete_files', methods=['POST'])
-def delete_files():
-    global current_sounds, sound_objects
+def delete_files() -> BaseResponse:
     files_to_delete = request.form.getlist('files_to_delete')
     if files_to_delete:
-        favorites_set = get_favorites()
+        favorites_set = sound_control.get_favorites()
         for filename in files_to_delete:
             file_path = SOUND_DIR / filename
             if file_path.is_file():
@@ -637,21 +649,21 @@ def delete_files():
                         favorites_set.remove(filename)
                 except OSError as e:
                     print(f'Error deleting file {filename}: {e}')
-        save_favorites(favorites_set)
+        sound_control.save_favorites(favorites_set)
     return redirect(url_for('home'))
 
 @app.route('/toggle_favorite/<sound_file>')
-def toggle_favorite(sound_file):
-    favorites_set = get_favorites()
+def toggle_favorite(sound_file: str) -> BaseResponse:
+    favorites_set = sound_control.get_favorites()
     if sound_file in favorites_set:
         favorites_set.remove(sound_file)
     else:
         favorites_set.add(sound_file)
-    save_favorites(favorites_set)
+    sound_control.save_favorites(favorites_set)
     return redirect(url_for('home'))
 
 @app.route('/favicon.ico')
-def favicon():
+def favicon() -> BaseResponse:
     static_folder = Path(app.root_path).joinpath('static')
     return send_from_directory(str(static_folder), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
@@ -661,6 +673,6 @@ if __name__ == '__main__':
         FAVORITES_FILE.touch()
 
     # Load volume on startup
-    load_volume()
+    sound_control.load_volume()
 
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)  # noqa: S104 Possible binding to all interfaces
