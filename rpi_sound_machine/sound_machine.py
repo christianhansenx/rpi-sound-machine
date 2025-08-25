@@ -13,7 +13,7 @@ from werkzeug.wrappers import Response as BaseResponse
 app = Flask(__name__)
 
 # Initialize Pygame mixer
-pygame.mixer.pre_init(44100, -16, 2, 4096)  # Add before pygame.mixer.init()
+pygame.mixer.pre_init(44100, -16, 2, 4096)
 pygame.mixer.init()
 pygame.mixer.set_num_channels(16)
 
@@ -33,12 +33,12 @@ class SoundControl:
     def __init__(self) -> None:
         """Initialize control settings."""
         self.global_volume = DEFAULT_GLOBAL_VOLUME
-        self.volume_save_timer = None  # Timer object for delayed volume saving
+        self.volume_save_timer = None
         self.paused = False
         self.current_sounds = set()
         self.elapsed_time_at_pause = 0
         self.last_play_time = None
-        self.sound_objects = {}  # Track pygame Sound objects for stopping
+        self.sound_objects = {}
 
     def get_state_as_dict(self) -> dict[str, object]:
         """Return the current state of the SoundControl as a JSON-serializable dictionary."""
@@ -46,7 +46,7 @@ class SoundControl:
             'paused': self.paused,
             'last_play_time': self.last_play_time,
             'elapsed_time_at_pause': self.elapsed_time_at_pause,
-            'active_sounds': list(self.current_sounds),
+            'active_sounds': sorted(self.current_sounds),
             'volume': self.global_volume,
         }
 
@@ -243,7 +243,7 @@ HOME_PAGE_TEMPLATE = """
         <form action="/delete_files" method="post">
             <div class="action-buttons">
                 <a href="#" id="pause-resume-btn" class="action-button stop-button" title="Pause/Resume All">
-                    {% if sound_control.paused %}
+                    {% if sound_state.paused %}
                         ▶️
                     {% else %}
                         ⏸️
@@ -261,7 +261,7 @@ HOME_PAGE_TEMPLATE = """
                     min="0"
                     max="1"
                     step="0.01"
-                    value="{{ sound_control.global_volume }}"
+                    value="{{ sound_state.volume }}"
                     id="volume-slider"
                     title="Volume Control"
                 >
@@ -273,11 +273,7 @@ HOME_PAGE_TEMPLATE = """
                         {% for sound_file in sound_files %}
                         <li class="file-list-item">
                             <a href="#"
-                                class="file-name-link
-                                    {%- if sound_file in sound_control.current_sounds -%}
-                                    active-sound
-                                    {%- endif -%}
-                                "
+                                class="file-name-link"
                                 data-file-name="{{ sound_file }}"
                             >
                                 {{ sound_file }}
@@ -293,38 +289,35 @@ HOME_PAGE_TEMPLATE = """
                     <p>No sound files uploaded yet.</p>
                 {% endif %}
             </div>
-        </form>
 
-        <h2>Favorites</h2>
-        <div class="list-section">
-            {% if favorites %}
-                <ul class="file-list">
-                    {% for sound_file in favorites %}
-                    <li class="file-list-item">
-                        <a href="#" class="file-name-link
-                            {%- if sound_file in sound_control.current_sounds -%}
-                            active-sound
-                            {%- endif -%}"
-                            data-file-name="{{ sound_file }}"
-                        >
-                            {{ sound_file }}
-                        </a>
-                        <div class="icon-group">
-                            <a href="/toggle_favorite/{{ sound_file }}" class="favorite-toggle">❤️</a>
-                        </div>
-                    </li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <p>No favorite sounds yet.</p>
-            {% endif %}
-        </div>
+            <h2>Favorites</h2>
+            <div class="list-section">
+                {% if favorites %}
+                    <ul class="file-list">
+                        {% for sound_file in favorites %}
+                        <li class="file-list-item">
+                            <a href="#" class="file-name-link"
+                                data-file-name="{{ sound_file }}"
+                            >
+                                {{ sound_file }}
+                            </a>
+                            <div class="icon-group">
+                                <a href="/toggle_favorite/{{ sound_file }}" class="favorite-toggle">❤️</a>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>No favorite sounds yet.</p>
+                {% endif %}
+            </div>
+        </form>
 
         <div class="upload-form">
             <h2>Upload Sound Files</h2>
             <form action="/upload_file" method="post" enctype="multipart/form-data">
                 <div class="upload-input-group">
-                    <input type="file" name="file[]" multiple class="file-input">
+                    <input type="file" name="file" multiple class="file-input">
                     <input type="submit" value="Upload" class="upload-button">
                 </div>
             </form>
@@ -338,9 +331,24 @@ HOME_PAGE_TEMPLATE = """
         const fileLinks = document.querySelectorAll('.file-name-link');
         const volumeSlider = document.getElementById('volume-slider');
 
-        let lastPlayTime = {{ sound_control.last_play_time if sound_control.last_play_time is not none else 'null' }};
-        let elapsedAtPause = {{ sound_control.elapsed_time_at_pause }};
+        let lastPlayTime = {{ sound_state.last_play_time if sound_state.last_play_time is not none else 'null' }};
+        let elapsedAtPause = {{ sound_state.elapsed_time_at_pause }};
         let timerInterval = null;
+
+        // Function to update the active sound class based on server state
+        function updateActiveSounds(activeSounds) {
+            fileLinks.forEach(link => {
+                const fileName = link.dataset.fileName;
+                if (activeSounds.includes(fileName)) {
+                    link.classList.add('active-sound');
+                } else {
+                    link.classList.remove('active-sound');
+                }
+            });
+        }
+
+        // Initial setup from server-side rendered data
+        updateActiveSounds({{ sound_state.active_sounds | tojson }});
 
         function updateTimer() {
             let totalElapsedSeconds = elapsedAtPause;
@@ -410,15 +418,7 @@ HOME_PAGE_TEMPLATE = """
                 }
 
                 // Update active sound class for all links
-                fileLinks.forEach(l => l.classList.remove('active-sound'));
-                if (data.active_sounds) {
-                    data.active_sounds.forEach(activeFile => {
-                        const activeLink = document.querySelector(`[data-file-name="${activeFile}"]`);
-                        if (activeLink) {
-                            activeLink.classList.add('active-sound');
-                        }
-                    });
-                }
+                updateActiveSounds(data.active_sounds);
             });
         });
 
@@ -439,6 +439,7 @@ HOME_PAGE_TEMPLATE = """
                 pauseResumeBtn.innerHTML = '⏸️';
                 startTimer();
             }
+            updateActiveSounds(data.active_sounds);
         });
 
         // Stop button
@@ -452,8 +453,8 @@ HOME_PAGE_TEMPLATE = """
             elapsedAtPause = data.elapsed_time_at_pause;
 
             pauseResumeBtn.innerHTML = '⏸️';
-            fileLinks.forEach(l => l.classList.remove('active-sound'));
             stopTimer(); // Resets the timer to 00:00:00
+            updateActiveSounds(data.active_sounds);
         });
 
         // Volume slider
@@ -476,12 +477,13 @@ def home() -> BaseResponse:
     favorite_files = sorted([f for f in all_files if f in favorites_set])
     non_favorite_files = sorted([f for f in all_files if f not in favorites_set])
 
+    sound_state = sound_control.get_state_as_dict()
+
     return render_template_string(
         HOME_PAGE_TEMPLATE,
-        sound_control=sound_control,
+        sound_state=sound_state,
         sound_files=non_favorite_files,
         favorites=favorite_files,
-        last_play_time=sound_control.last_play_time,
     )
 
 
@@ -532,7 +534,7 @@ def set_volume(volume_level: float) -> BaseResponse:
     sound_control.schedule_volume_save()
 
     data = sound_control.get_state_as_dict()
-    data['success'] = True  # For future validation feature
+    data['success'] = True
     return jsonify(data)
 
 
@@ -554,16 +556,15 @@ def toggle_play(sound_file: str) -> BaseResponse:
         try:
             snd = pygame.mixer.Sound(str(sound_path))
             snd.play(loops=-1)
-            snd.set_volume(sound_control.global_volume)  # Set the volume when a new sound starts
+            snd.set_volume(sound_control.global_volume)
 
             # Add the new sound without stopping others
             sound_control.current_sounds.add(sound_file)
             sound_control.sound_objects[sound_file] = snd
 
-            # Reset the timer as a new sound is starting
-            sound_control.last_play_time = time.time()
-            sound_control.elapsed_time_at_pause = 0
-            sound_control.paused = False
+            if not sound_control.paused:
+                sound_control.last_play_time = time.time()
+                sound_control.elapsed_time_at_pause = 0
         except pygame.error as e:
             print(f'Error playing sound: {e}')
     else:
@@ -611,13 +612,10 @@ def stop_sound() -> BaseResponse:
 
 @app.route('/upload_file', methods=['POST'])
 def upload_file() -> BaseResponse:
-    if 'file[]' not in request.files:
-        return redirect(url_for('home'))
-
-    files = request.files.getlist('file[]')
+    files = request.files.getlist('file')
 
     for file in files:
-        if file.filename != '':
+        if file and file.filename != '':
             filename = secure_filename(file.filename)
             file_path = SOUND_DIR / filename
             file.save(file_path)

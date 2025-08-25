@@ -146,7 +146,7 @@ def test_upload_file(client: FlaskClient, setup_test_environment: dict[str, Any]
     """Test uploading a file."""
     sounds_dir = setup_test_environment['sounds_dir']
     data = {
-        'file[]': (BytesIO(b'some sound data'), 'new_sound.wav'),
+        'file': (BytesIO(b'some sound data'), 'new_sound.wav'),
     }
     response = client.post('/upload_file', data=data, content_type='multipart/form-data')
     assert response.status_code == HTTPStatus.FOUND
