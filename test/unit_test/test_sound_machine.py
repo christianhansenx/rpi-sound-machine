@@ -58,13 +58,12 @@ def setup_test_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> d
     monkeypatch.setattr(sound_machine, 'FAVORITES_FILE', favorites_file)
     monkeypatch.setattr(sound_machine, 'VOLUME_FILE', volume_file)
 
-    # Reset global state before each test
-    monkeypatch.setattr(sound_machine, 'current_sounds', set())
-    monkeypatch.setattr(sound_machine, 'sound_objects', {})
-    monkeypatch.setattr(sound_machine, 'paused', False)
-    monkeypatch.setattr(sound_machine, 'last_play_time', None)
-    monkeypatch.setattr(sound_machine, 'elapsed_time_at_pause', 0)
-    monkeypatch.setattr(sound_machine, 'global_volume', 0.5)
+    monkeypatch.setattr(sound_machine.sound_control, 'global_volume', 0.5)
+    monkeypatch.setattr(sound_machine.sound_control, 'paused', False)
+    monkeypatch.setattr(sound_machine.sound_control, 'current_sounds', set())
+    monkeypatch.setattr(sound_machine.sound_control, 'elapsed_time_at_pause', 0)
+    monkeypatch.setattr(sound_machine.sound_control, 'last_play_time', None)
+    monkeypatch.setattr(sound_machine.sound_control, 'sound_objects', {})
 
     # Create a dummy sound file
     (sounds_dir / 'test.wav').touch()
@@ -147,7 +146,7 @@ def test_upload_file(client: FlaskClient, setup_test_environment: dict[str, Any]
     """Test uploading a file."""
     sounds_dir = setup_test_environment['sounds_dir']
     data = {
-        'file[]': (BytesIO(b'some sound data'), 'new_sound.wav'),
+        'file': (BytesIO(b'some sound data'), 'new_sound.wav'),
     }
     response = client.post('/upload_file', data=data, content_type='multipart/form-data')
     assert response.status_code == HTTPStatus.FOUND
@@ -185,7 +184,7 @@ def test_set_volume(client: FlaskClient, setup_test_environment: dict[str, Any],
     """Test setting the volume."""
     sound_machine = setup_test_environment['sound_machine']
     # Mock the schedule_volume_save function to prevent file writing
-    mocker.patch('rpi_sound_machine.sound_machine.schedule_volume_save')
+    mocker.patch('rpi_sound_machine.sound_machine.sound_control.schedule_volume_save')
 
     client.get('/toggle_play/test.wav')
 
@@ -198,4 +197,4 @@ def test_set_volume(client: FlaskClient, setup_test_environment: dict[str, Any],
     # The volume saving is on a timer, so we can't easily test the file write
     # without more complex mocking of the Timer.
     # We will trust the set_volume function sets the global var correctly.
-    assert sound_machine.global_volume == TEST_VOLUME
+    assert sound_machine.sound_control.global_volume == TEST_VOLUME
