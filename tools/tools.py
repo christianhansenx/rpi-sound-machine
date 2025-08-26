@@ -1,19 +1,20 @@
 """Tools for RPI Sound Machine."""
 import argparse
+import enum
 import errno
 import sys
 import threading
 import time
 from pathlib import Path
 
-from ssh_client import SshClient, SshClientHandler
+from paramiko import SFTPClient
 
-LOCAL_PROJECT_DIRECTORY = 'rpi_sound_machine'
-APPLICATION_FILE = 'sound_machine.py'
-TMUX_SESSION_NAME = 'sound'
+from . import APPLICATION_FILE, LOCAL_PROJECT_DIRECTORY, TMUX_SESSION_NAME  # Imports from __ini__.py
+from .ssh_client import SshClient, SshClientHandler
+
 UPLOAD_EXCLUDES_FOLDERS = ['.venv', '.git', '.ruff_cache', '__pycache__']
 UPLOAD_EXCLUDES_FILES = []  # Add specific file names here if needed
-RPI_APPLICATION_PROCESS_NAME = f'{LOCAL_PROJECT_DIRECTORY}/.venv/bin/python3 {APPLICATION_FILE}'
+RPI_APPLICATION_PROCESS_NAME = f'python3 {APPLICATION_FILE}'
 CONFIG_FILE = Path('rpi_host_config.yaml')
 
 # Linting: S108 Probable insecure usage of temporary file or directory: "/tmp/"
@@ -32,13 +33,20 @@ class InstallRpiTmuxError(Exception):
     """Could not install tmux on RPI."""
 
 
+class KillSignals(str, enum.Enum):
+    """Kill signals for stopping application on RPI."""
+
+    SIGTERM = '-15'  # Terminate gracefully
+    SIGINT = '-2'  # Ctrl+C
+    SIGKILL = '-9'  # Force kill
+
+
 def rpi_check_running_app(ssh_client: SshClient, process_name: str, *, message_no_process: bool = True) -> list[str]:
     """Check about processes are running.
 
     return: list of running process id's
     """
-    stdin, stdout, stderr = ssh_client.client.exec_command(f'pgrep -f "{process_name}"')
-    proc_ids = stdout.read().decode('utf-8').strip().split('\n')
+    proc_ids = _rpi_check_running_app(ssh_client, process_name)
     valid_proc_ids = [pid for pid in proc_ids if pid]
     if valid_proc_ids:
         print(f'Process "{process_name}" running')
@@ -48,6 +56,55 @@ def rpi_check_running_app(ssh_client: SshClient, process_name: str, *, message_n
     return valid_proc_ids
 
 
+def _rpi_check_running_app(ssh_client: SshClient, process_name: str) -> list[str]:
+    stdin, stdout, stderr = ssh_client.client.exec_command(f'pgrep -f "{process_name}"')
+    proc_ids = stdout.read().decode('utf-8').strip().split('\n')
+    return [pid for pid in proc_ids if pid]
+
+
+def rpi_kill_app(ssh_client: SshClient, process_name: str, *, msg_no_kill: bool = True) -> None:
+    """Stop application on RPI."""
+    if not (proc_ids := _rpi_check_running_app(ssh_client, process_name)):
+        if msg_no_kill:
+            print('No running process found, nothing to kill')
+        return
+    print(f'Killing process "{process_name}" with PID(s): {", ".join(proc_ids)}')
+    kill_error = 'unknown error'
+    for kill_signal in KillSignals:
+        for pid in proc_ids:
+            if _rpi_check_process_id(ssh_client, pid):
+                stdin, stdout, stderr_kill = ssh_client.client.exec_command(f'kill {kill_signal.value} {pid}')
+                exit_status = stdout.channel.recv_exit_status()
+                if exit_status != 0:
+                    error = (
+                        f'Failed to kill "{process_name}" (PID {pid}) with {kill_signal.name}: '
+                        f'{stderr_kill.read().decode('utf-8').strip()}'
+                    )
+                    raise KillRpiProcessError(error)
+                time.sleep(0.2)
+        if not (kill_error := _rpi_wait_no_kill_error(ssh_client, process_name, kill_signal)):
+            break
+
+    else:
+        raise KillRpiProcessError(kill_error)
+    print(f'Successfully killed "{process_name}" with {kill_signal.name}')
+
+
+def _rpi_wait_no_kill_error(ssh_client: SshClient, process_name: str, kill_signal: KillSignals) -> str | None:
+    kill_error = None
+    check_reties = 10
+    while True:
+        if not (proc_ids := _rpi_check_running_app(ssh_client, process_name)):
+            break
+        check_reties -= 1
+        if check_reties < 0:
+            kill_error = f'Failed to kill "{process_name}" with {kill_signal.name}, PID(s) still alive: {", ".join(proc_ids)}'
+            print(f'{kill_error}')
+            break
+        time.sleep(0.2)
+    return kill_error
+
+
 def _rpi_check_process_id(ssh_client: SshClient, proc_id: str) -> bool:
     """Check about process is running."""
     stdin, stdout, stderr = ssh_client.client.exec_command(f'ps -p {proc_id}')
@@ -55,25 +112,7 @@ def _rpi_check_process_id(ssh_client: SshClient, proc_id: str) -> bool:
     return exit_status == 0
 
 
-def rpi_kill_app(ssh_client: SshClient, process_name: str, proc_ids: list[str], *, msg_no_kill: bool = True) -> None:
-    """Stop application on RPI."""
-    if not proc_ids:
-        if msg_no_kill:
-            print('No running process found, nothing to kill')
-        return
-    for pid in proc_ids:
-        if _rpi_check_process_id(ssh_client, pid):
-            stdin, stdout, stderr_kill = ssh_client.client.exec_command(f'kill {pid}')
-            exit_status = stdout.channel.recv_exit_status()
-            if exit_status != 0:
-                error = f'Failed to kill PID {pid}: {stderr_kill.read().decode('utf-8').strip()}'
-                raise KillRpiProcessError(error)
-            time.sleep(0.5)
-    time.sleep(1)
-    print(f'Successfully killed "{process_name}"')
-
-
-def rpi_tmux(ssh_client: SshClient, *, restart_application: bool = False) -> None:
+def rpi_tmux(ssh_client: SshClient, process_name: str, *, restart_application: bool = False) -> None:
     """Open tmux session on RPI."""
     # Restart session if required
     _install_tmux(ssh_client)
@@ -106,16 +145,10 @@ def rpi_tmux(ssh_client: SshClient, *, restart_application: bool = False) -> Non
         ssh_client.client.exec_command(tmux_command)
         time.sleep(1)
 
-    _tmux_terminal(ssh_client, restart_application=restart_application)
+    _tmux_terminal(ssh_client, process_name, restart_application=restart_application)
 
 
-def _tmux_terminal(ssh_client: SshClient, *, restart_application: bool) -> None:
-    tmux_session_msg = (
-        f'\ntmux session "{TMUX_SESSION_NAME}" is running on {ssh_client.connection}, to access it from rpi terminal:'
-        f' tmux attach -t {TMUX_SESSION_NAME}'
-        '\n'
-    )
-
+def _tmux_terminal(ssh_client: SshClient, process_name: str, *, restart_application: bool) -> None:
     # start sftp
     max_retries = 10
     sftp_client = None
@@ -132,14 +165,22 @@ def _tmux_terminal(ssh_client: SshClient, *, restart_application: bool) -> None:
     else:
         error = f'Failed to find log file on rpi: {TMUX_LOG_PATH}'
         raise FileNotFoundError(error)
-    remote_tmux_log = sftp_client.open(TMUX_LOG_PATH, 'r', bufsize=4096)
 
-    # Start application (if required) and show tmux output in terminal
+    # Start application (if required)
     if restart_application:
         remote_dir = f'/home/{ssh_client.username}/{LOCAL_PROJECT_DIRECTORY}'
         command = f'cd {remote_dir} && uv run --no-group dev {APPLICATION_FILE}'
         ssh_client.client.exec_command(f'tmux send-keys -t {TMUX_SESSION_NAME} "{command}" C-m')
         print(f'Application {APPLICATION_FILE} on {ssh_client.connection} has been started')
+
+    _tmux_terminal_streaming(ssh_client, process_name, sftp_client)
+
+
+def _tmux_terminal_streaming(ssh_client: SshClient, process_name: str, sftp_client: SFTPClient) -> None:
+    tmux_session_msg = (
+        f'\ntmux session "{TMUX_SESSION_NAME}" is running on {ssh_client.connection}, to access it from rpi terminal:'
+        f' tmux attach -t {TMUX_SESSION_NAME}'
+    )
 
     # Set up user termination thread
     stop_event = threading.Event()
@@ -153,8 +194,18 @@ def _tmux_terminal(ssh_client: SshClient, *, restart_application: bool) -> None:
     input_thread.start()
 
     # tmux streaming
+    remote_tmux_log = sftp_client.open(TMUX_LOG_PATH, 'r', bufsize=4096)
     print(f'{tmux_session_msg}')
-    print('Press Enter to exit.')
+    check_app_reties = 10
+    while True:
+        if _rpi_check_running_app(ssh_client, process_name):
+            break
+        check_app_reties -= 1
+        if check_app_reties < 0:
+            print(f'WARNING: No running process found of "{process_name}"')
+            break
+        time.sleep(0.2)
+    print('\nPress Enter to exit.')
     try:
         while not stop_event.is_set():
             line = remote_tmux_log.readline()
@@ -230,19 +281,16 @@ def main() -> None:
         if args.rpi_check_app:
             rpi_check_running_app(ssh_client, RPI_APPLICATION_PROCESS_NAME)
         if args.rpi_kill_app:
-            proc_ids = rpi_check_running_app(ssh_client, RPI_APPLICATION_PROCESS_NAME, message_no_process=False)
-            rpi_kill_app(ssh_client, RPI_APPLICATION_PROCESS_NAME, proc_ids)
+            rpi_kill_app(ssh_client, RPI_APPLICATION_PROCESS_NAME)
         if args.rpi_run_app:
-            proc_ids = rpi_check_running_app(ssh_client, RPI_APPLICATION_PROCESS_NAME, message_no_process=False)
-            rpi_kill_app(ssh_client, RPI_APPLICATION_PROCESS_NAME, proc_ids, msg_no_kill=False)
-            rpi_tmux(ssh_client, restart_application=True)
+            rpi_kill_app(ssh_client, RPI_APPLICATION_PROCESS_NAME, msg_no_kill=False)
+            rpi_tmux(ssh_client, RPI_APPLICATION_PROCESS_NAME, restart_application=True)
         if args.rpi_tmux:
-            rpi_tmux(ssh_client)
+            rpi_tmux(ssh_client, RPI_APPLICATION_PROCESS_NAME)
         if args.rpi_copy_code:
             rpi_upload_app(ssh_client)
-            proc_ids = rpi_check_running_app(ssh_client, RPI_APPLICATION_PROCESS_NAME, message_no_process=False)
-            rpi_kill_app(ssh_client, RPI_APPLICATION_PROCESS_NAME, proc_ids, msg_no_kill=False)
-            rpi_tmux(ssh_client, restart_application=True)
+            rpi_kill_app(ssh_client, RPI_APPLICATION_PROCESS_NAME, msg_no_kill=False)
+            rpi_tmux(ssh_client, RPI_APPLICATION_PROCESS_NAME, restart_application=True)
 
 
 if __name__ == '__main__':
