@@ -1,5 +1,6 @@
 # Path relative to the justfile's location
 TOOLS_PATH := "tools"
+TOOLS_MODULE := "tools"
 
 
 # Executing "just" without arguments is listing all recipes
@@ -8,23 +9,23 @@ list-recipes:
 
 # RPI: Checking about application is already running on Raspberry Pi device
 check:
-    @uv run --quiet --project "{{TOOLS_PATH}}" python "{{TOOLS_PATH}}"/tools.py --rpi-check-app
+    @uv run --quiet --project "{{TOOLS_PATH}}" python -m "{{TOOLS_PATH}}.{{TOOLS_MODULE}}" --rpi-check-app
 
 # RPI: Killing running application on Raspberry Pi device
 kill:
-    @uv run --quiet --project "{{TOOLS_PATH}}" python "{{TOOLS_PATH}}"/tools.py --rpi-kill-app
+    @uv run --quiet --project "{{TOOLS_PATH}}" python -m "{{TOOLS_PATH}}.{{TOOLS_MODULE}}" --rpi-kill-app
 
 # RPI: Starting application on Raspberry Pi device (first it will kill already running app) 
 run:
-    @uv run --quiet --project "{{TOOLS_PATH}}" python "{{TOOLS_PATH}}"/tools.py --rpi-run-app
+    @uv run --quiet --project "{{TOOLS_PATH}}" python -m "{{TOOLS_PATH}}.{{TOOLS_MODULE}}" --rpi-run-app
 
 # RPI: Copying application to Raspberry Pi device and then starting application
 sync:
-    @uv run --quiet --project "{{TOOLS_PATH}}" python "{{TOOLS_PATH}}"/tools.py --rpi-copy-code
+    @uv run --quiet --project "{{TOOLS_PATH}}" python -m "{{TOOLS_PATH}}.{{TOOLS_MODULE}}" --rpi-copy-code
 
 # RPI: Live stream from Raspberry Pi device tmux session
 tmux:
-    @uv run --quiet --project "{{TOOLS_PATH}}" python "{{TOOLS_PATH}}"/tools.py --rpi-tmux
+    @uv run --quiet --project "{{TOOLS_PATH}}" python -m "{{TOOLS_PATH}}.{{TOOLS_MODULE}}" --rpi-tmux
 
 # Check linting with ruff
 ruff:
