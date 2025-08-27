@@ -26,7 +26,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "test/**/*.py" = [
-    "S101",  # Use of `assert` detected (it's OK to use assert in pytest functions))
+    "S101",  # Use of `assert` detected (it's OK to use assert in pytest functions)
 ]
 
 [tool.ruff.lint.flake8-quotes]

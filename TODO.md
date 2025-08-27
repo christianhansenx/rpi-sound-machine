@@ -1,8 +1,9 @@
 # TODO (features and improvements)
-- graceful kill with SIGTERM
 - start app when RPI boots
-- mypy
 - connect to bt speaker
+- graceful kill with SIGTERM
+- change tools to rpi_remote_tools
+- mypy
 - progress bar for uploading files
 - scrollable file lists
 - light blue background
