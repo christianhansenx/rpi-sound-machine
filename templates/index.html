@@ -1,0 +1,108 @@
+<!doctype html>
+<html>
+<head>
+    <title>Raspberry Pi Sound Machine</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="shortcut icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>🎵 Raspberry Pi Sound Machine</h1>
+
+        <form action="/delete_files" method="post">
+            <div class="action-buttons">
+                <a href="#" id="pause-resume-btn" class="action-button stop-button" title="Pause/Resume All">
+                    {% if sound_state.paused %}
+                        ▶️
+                    {% else %}
+                        ⏸️
+                    {% endif %}
+                </a>
+                <a href="#" id="stop-btn" class="action-button stop-button" title="Stop All">⏹️</a>
+                <button type="submit" class="action-button delete-button" title="Delete Selected">🗑️</button>
+            </div>
+            <div id="play-timer">00:00:00</div>
+
+            <div class="volume-control-container">
+                <span class="volume-label">🔊</span>
+                <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value="{{ sound_state.volume }}"
+                    id="volume-slider"
+                    title="Volume Control"
+                >
+            </div>
+
+            <div class="list-section">
+                {% if sound_files %}
+                    <ul class="file-list">
+                        {% for sound_file in sound_files %}
+                        <li class="file-list-item">
+                            <a href="#"
+                                class="file-name-link"
+                                data-file-name="{{ sound_file }}"
+                            >
+                                {{ sound_file }}
+                            </a>
+                            <div class="icon-group">
+                                <a href="/toggle_favorite/{{ sound_file }}" class="favorite-toggle">🤍</a>
+                                <input type="checkbox" name="files_to_delete" value="{{ sound_file }}" class="delete-checkbox">
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>No sound files uploaded yet.</p>
+                {% endif %}
+            </div>
+
+            <h2>Favorites</h2>
+            <div class="list-section">
+                {% if favorites %}
+                    <ul class="file-list">
+                        {% for sound_file in favorites %}
+                        <li class="file-list-item">
+                            <a href="#" class="file-name-link"
+                                data-file-name="{{ sound_file }}"
+                            >
+                                {{ sound_file }}
+                            </a>
+                            <div class="icon-group">
+                                <a href="/toggle_favorite/{{ sound_file }}" class="favorite-toggle">❤️</a>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p>No favorite sounds yet.</p>
+                {% endif %}
+            </div>
+        </form>
+
+        <div class="upload-form">
+            <h2>Upload Sound Files</h2>
+            <form action="/upload_file" method="post" enctype="multipart/form-data">
+                <div class="upload-input-group">
+                    <input type="file" name="file" multiple class="file-input">
+                    <input type="submit" value="Upload" class="upload-button">
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Pass initial state from Flask to JavaScript
+        const initialState = {
+            lastPlayTime: {{ sound_state.last_play_time if sound_state.last_play_time is not none else 'null' }},
+            elapsedAtPause: {{ sound_state.elapsed_time_at_pause }},
+            activeSounds: {{ sound_state.active_sounds | tojson }}
+        };
+    </script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

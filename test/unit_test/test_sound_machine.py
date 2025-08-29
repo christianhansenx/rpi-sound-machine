@@ -118,13 +118,13 @@ def test_pause_resume(client: FlaskClient, setup_test_environment: dict[str, Any
     client.get('/toggle_play/test.wav')
 
     # Pause
-    response = client.get('/pause_resume_all_link')
+    response = client.get('/pause_resume')
     assert response.status_code == HTTPStatus.OK
     assert json.loads(response.data)['paused'] is True
     assert pygame_mock.mixer.pause.called
 
     # Resume
-    response = client.get('/pause_resume_all_link')
+    response = client.get('/pause_resume')
     assert response.status_code == HTTPStatus.OK
     assert json.loads(response.data)['paused'] is False
     assert pygame_mock.mixer.unpause.called
