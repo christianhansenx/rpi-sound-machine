@@ -1,10 +1,11 @@
 # TODO (features and improvements)
 
 ## Improvements
+- change tools to rpi_remote_tools / get folder info from a root file
 - start app when RPI boots
+- locate files in .config
 - connect to bt speaker
 - graceful kill with SIGTERM
-- change tools to rpi_remote_tools
 - mypy
 - Selenium tests
 - progress bar for uploading files
