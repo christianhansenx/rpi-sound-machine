@@ -10,7 +10,7 @@ from werkzeug.utils import secure_filename
 from werkzeug.wrappers import Response as BaseResponse
 
 # Initialize Flask app
-app = Flask(__name__, template_folder='../templates', static_folder='../static')
+app = Flask(__name__, template_folder='templates', static_folder='static')
 
 # Initialize Pygame mixer
 pygame.mixer.pre_init(44100, -16, 2, 4096)
