@@ -13,7 +13,7 @@ from werkzeug.wrappers import Response as BaseResponse
 app = Flask(__name__)
 
 # Initialize Pygame mixer
-pygame.mixer.pre_init(44100, -16, 2, 4096)
+pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=2048)
 pygame.mixer.init()
 pygame.mixer.set_num_channels(16)
 
