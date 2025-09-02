@@ -288,8 +288,8 @@ def main() -> None:
         if args.rpi_tmux:
             rpi_tmux(ssh_client, RPI_APPLICATION_PROCESS_NAME)
         if args.rpi_copy_code:
-            rpi_upload_app(ssh_client)
             rpi_kill_app(ssh_client, RPI_APPLICATION_PROCESS_NAME, msg_no_kill=False)
+            rpi_upload_app(ssh_client)
             rpi_tmux(ssh_client, RPI_APPLICATION_PROCESS_NAME, restart_application=True)
 
 

@@ -1,0 +1,137 @@
+* {
+    -webkit-tap-highlight-color: transparent !important;
+    -webkit-touch-callout: none !important;
+}
+body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; background-color: #f0f0f0; }
+.container {
+    max-width: 600px;
+    margin: auto;
+    padding: 20px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    text-align: left;
+}
+h1 { color: #333; text-align: center; font-size: 24px; }
+h2 { color: #333; text-align: center; font-size: 20px; margin-top: 30px; }
+hr { border: 0; border-top: 1px solid #ccc; margin: 20px 0; }
+
+.list-section {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 10px;
+    margin-top: 10px;
+}
+.file-list { list-style: none; padding: 0; margin: 0; }
+.file-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+}
+.file-list-item:last-child { border-bottom: none; }
+.file-list-item:hover { background-color: #f9f9f9; }
+
+.file-name-link {
+    flex-grow: 1;
+    padding: 0;
+    text-decoration: none;
+    color: #333;
+    font-size: 16px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.file-name-link.active-sound { font-weight: bold; color: #28a745; }
+.file-name-link.active-sound:hover { color: #218838; }
+
+.icon-group {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+.favorite-toggle {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 10px;
+    text-decoration: none;
+}
+.delete-checkbox {
+    transform: scale(1.2);
+    margin-left: 10px;
+}
+
+.action-buttons {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-top: 20px;
+    margin-bottom: 20px;
+    gap: 20px;
+}
+.action-button,
+.action-button:visited,
+.action-button:active,
+.action-button:focus {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    border-radius: 50%;
+    font-size: 48px;
+    color: #333 !important;
+    cursor: pointer;
+    margin: 0 5px;
+    text-decoration: none !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+}
+.action-button:hover {
+    background-color: #f5f5f5 !important;
+}
+
+/* New CSS rule to make the stop/pause buttons blue */
+.action-button.stop-button,
+.action-button.stop-button:visited,
+.action-button.stop-button:active,
+.action-button.stop-button:focus {
+    color: #007BFF !important;
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+#play-timer {
+    font-size: 18px;
+    font-weight: bold;
+    color: #555;
+    min-width: 50px;
+    text-align: center;
+    margin-top: 10px;
+}
+
+.volume-control-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 20px;
+}
+#volume-slider {
+    width: 200px;
+    margin: 0 10px;
+}
+.volume-label {
+    font-size: 16px;
+    color: #555;
+}
