@@ -276,14 +276,14 @@ def main() -> None:
         help='Live stream from Raspberry Pi device tmux session',
     )
     parser.add_argument(
-        '--config-file',
-        type=Path,
+        '--configurations',
+        type=str,
         required=True,
         help='Path to the configuration file',
     )
     args = parser.parse_args()
 
-    print(f'Config file: {args.config_file}')
+    print(f'{args.configurations}')
     exit()
 
     with SshClientHandler(CONFIG_FILE) as ssh_client:

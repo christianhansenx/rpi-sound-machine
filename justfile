@@ -3,12 +3,12 @@ list-recipes:
     @just --list --unsorted
 
 RPI_REMOTE_TOOLS_PATH := "rpi-remote-tools"
-RPI_REMOTE_TOOLS_CONFIG_FILE := "rpi_remote_tools_config.yaml"
+RPI_REMOTE_TOOLS_CONFIGURATIONS := '{"local_project_directory": "rpi_sound_machine"}'
 # Raspberry Pi Remote Tools recipes.
 rpi rpi_args="":
     @if [ -n "{{rpi_args}}" ]; then \
         just --justfile {{RPI_REMOTE_TOOLS_PATH}}/justfile \
-            {{rpi_args}} config_file_arg={{RPI_REMOTE_TOOLS_CONFIG_FILE}}; \
+            {{rpi_args}} configurations={{RPI_REMOTE_TOOLS_CONFIGURATIONS}}; \
     else \
         just --justfile {{RPI_REMOTE_TOOLS_PATH}}/justfile; \
     fi

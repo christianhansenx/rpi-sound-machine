@@ -6,8 +6,9 @@ list-recipes:
     @just --list --unsorted
 
 # Checking about application is already running on Raspberry Pi device.
-check config_file_arg="":
-    @just _rpi --rpi-check-app --config-file {{config_file_arg}}
+check configurations="{}":
+    @echo "Using config file: {{configurations}}"  # For debug
+    @just _rpi --rpi-check-app --configurations {{configurations}}
 
 # Killing running application on Raspberry Pi device
 kill:
