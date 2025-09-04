@@ -277,17 +277,21 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    if not any(vars(args).values()):
+        error_message = 'No arguments provided. Please use a command-line flag.'
+        raise TypeError(error_message)
+
     with SshClientHandler(CONFIG_FILE) as ssh_client:
         if args.rpi_check_app:
             rpi_check_running_app(ssh_client, RPI_APPLICATION_PROCESS_NAME)
-        if args.rpi_kill_app:
+        elif args.rpi_kill_app:
             rpi_kill_app(ssh_client, RPI_APPLICATION_PROCESS_NAME)
-        if args.rpi_run_app:
+        elif args.rpi_run_app:
             rpi_kill_app(ssh_client, RPI_APPLICATION_PROCESS_NAME, msg_no_kill=False)
             rpi_tmux(ssh_client, RPI_APPLICATION_PROCESS_NAME, restart_application=True)
-        if args.rpi_tmux:
+        elif args.rpi_tmux:
             rpi_tmux(ssh_client, RPI_APPLICATION_PROCESS_NAME)
-        if args.rpi_copy_code:
+        elif args.rpi_copy_code:
             rpi_kill_app(ssh_client, RPI_APPLICATION_PROCESS_NAME, msg_no_kill=False)
             rpi_upload_app(ssh_client)
             rpi_tmux(ssh_client, RPI_APPLICATION_PROCESS_NAME, restart_application=True)
