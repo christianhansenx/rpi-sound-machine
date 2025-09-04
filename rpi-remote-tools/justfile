@@ -1,7 +1,5 @@
-# Path relative to the justfile's location
 RPI_REMOTE_TOOLS_PATH := "rpi_remote_tools"
 RPI_REMOTE_TOOLS_MODULE := "tools"
-
 
 # Executing "just" without arguments is listing recipes
 list-recipes:
@@ -9,20 +7,24 @@ list-recipes:
 
 # Checking about application is already running on Raspberry Pi device.
 check:
-    @uv run --quiet --project "{{RPI_REMOTE_TOOLS_PATH}}" python -m "{{RPI_REMOTE_TOOLS_PATH}}.{{RPI_REMOTE_TOOLS_MODULE}}" --rpi-check-app
+    @just _rpi --rpi-check-app
 
 # Killing running application on Raspberry Pi device
 kill:
-    @uv run --quiet --project "{{RPI_REMOTE_TOOLS_PATH}}" python -m "{{RPI_REMOTE_TOOLS_PATH}}.{{RPI_REMOTE_TOOLS_MODULE}}" --rpi-kill-app
+    @just _rpi --rpi-kill-app
 
 # Starting application on Raspberry Pi device (first it will kill already running app) 
 run:
-    @uv run --quiet --project "{{RPI_REMOTE_TOOLS_PATH}}" python -m "{{RPI_REMOTE_TOOLS_PATH}}.{{RPI_REMOTE_TOOLS_MODULE}}" --rpi-run-app
+    @just _rpi --rpi-run-app
 
 # Copying application to Raspberry Pi device and then starting application
 sync:
-    @uv run --quiet --project "{{RPI_REMOTE_TOOLS_PATH}}" python -m "{{RPI_REMOTE_TOOLS_PATH}}.{{RPI_REMOTE_TOOLS_MODULE}}" --rpi-copy-code
+    @just _rpi --rpi-copy-code
 
 # Live stream from Raspberry Pi device tmux session
 tmux:
-    @uv run --quiet --project "{{RPI_REMOTE_TOOLS_PATH}}" python -m "{{RPI_REMOTE_TOOLS_PATH}}.{{RPI_REMOTE_TOOLS_MODULE}}" --rpi-tmux
+    @just _rpi --rpi-tmux
+
+_rpi *args:
+    @uv run --quiet --project {{RPI_REMOTE_TOOLS_PATH}} \
+        python -m {{RPI_REMOTE_TOOLS_PATH}}.{{RPI_REMOTE_TOOLS_MODULE}} {{args}}
