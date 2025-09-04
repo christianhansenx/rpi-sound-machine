@@ -23,7 +23,7 @@ TMUX_LOG_PATH = f'/tmp/{LOCAL_PROJECT_DIRECTORY}.tmux-log'  # noqa: S108
 
 
 class StartRpiTmuxError(Exception):
-    """Could start tmux session on RPI."""
+    """Could not start tmux session on RPI."""
 
 
 class KillRpiProcessError(Exception):
