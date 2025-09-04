@@ -1,7 +1,6 @@
 # TODO (features and improvements)
 
 ## Improvements
-- change tools to rpi_remote_tools / get folder info from a root file
 - start app when RPI boots
 - locate files in .config
 - Error when start plying new sound:<br>

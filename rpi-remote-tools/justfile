@@ -1,0 +1,30 @@
+RPI_REMOTE_TOOLS_PATH := "rpi_remote_tools"
+RPI_REMOTE_TOOLS_MODULE := "tools"
+
+# Executing "just" without arguments is listing recipes
+list-recipes:
+    @just --list --unsorted
+
+# Checking about application is already running on Raspberry Pi device.
+check:
+    @just _rpi --rpi-check-app
+
+# Killing running application on Raspberry Pi device
+kill:
+    @just _rpi --rpi-kill-app
+
+# Starting application on Raspberry Pi device (first it will kill already running app) 
+run:
+    @just _rpi --rpi-run-app
+
+# Copying application to Raspberry Pi device and then starting application
+sync:
+    @just _rpi --rpi-copy-code
+
+# Live stream from Raspberry Pi device tmux session
+tmux:
+    @just _rpi --rpi-tmux
+
+_rpi *args:
+    @uv run --quiet --project {{RPI_REMOTE_TOOLS_PATH}} \
+        python -m {{RPI_REMOTE_TOOLS_PATH}}.{{RPI_REMOTE_TOOLS_MODULE}} {{args}}
