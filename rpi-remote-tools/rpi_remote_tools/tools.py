@@ -286,8 +286,7 @@ def main() -> None:
 
     print(f'{args.configurations=}')
     data = json.loads(args.configurations)
-    print("Parsed JSON:", data)
-    exit()
+    print('Parsed JSON:', data)
 
     with SshClientHandler(CONFIG_FILE) as ssh_client:
         if args.rpi_check_app:

@@ -2,8 +2,8 @@
 list-recipes:
     @just --list --unsorted
 
+RPI_REMOTE_TOOLS_CONFIGURATIONS := '{"local_project_directory": "rpi_sound_machine", "application_file": "sound_machine.py", "tmux_session_name": "sound"}'
 RPI_REMOTE_TOOLS_PATH := "rpi-remote-tools"
-RPI_REMOTE_TOOLS_CONFIGURATIONS := '{"local_project_directory": "rpi_sound_machine"}'
 # Raspberry Pi Remote Tools recipes.
 rpi rpi_args="":
     @if [ -n "{{rpi_args}}" ]; then \

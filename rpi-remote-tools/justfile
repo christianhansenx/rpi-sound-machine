@@ -1,29 +1,27 @@
 RPI_REMOTE_TOOLS_PATH := "rpi_remote_tools"
 RPI_REMOTE_TOOLS_MODULE := "tools"
 
-_rpi *args:
+_rpi command configurations:
     @uv run --quiet --project {{RPI_REMOTE_TOOLS_PATH}} \
-        python -m {{RPI_REMOTE_TOOLS_PATH}}.{{RPI_REMOTE_TOOLS_MODULE}} {{args}}
-
-check configurations="{}":
-    @# @echo "Using config: {{configurations}}"
-    @# @just _rpi --rpi-check-app --configurations '{{configurations}}'
-    @uv run --quiet --project {{RPI_REMOTE_TOOLS_PATH}} \
-        python -m {{RPI_REMOTE_TOOLS_PATH}}.{{RPI_REMOTE_TOOLS_MODULE}} --rpi-check-app \
+        python -m {{RPI_REMOTE_TOOLS_PATH}}.{{RPI_REMOTE_TOOLS_MODULE}} {{command}} \
         --configurations '{{configurations}}'
 
+# Checking about application is already running on Raspberry Pi device.
+check configurations="{}":
+    @just _rpi --rpi-check-app '{{configurations}}'
+
 # Killing running application on Raspberry Pi device
-kill:
-    @just _rpi --rpi-kill-app
+kill configurations="{}":
+    @just _rpi --rpi-kill-app '{{configurations}}'
 
 # Starting application on Raspberry Pi device (first it will kill already running app) 
-run:
-    @just _rpi --rpi-run-app
+run configurations="{}":
+    @just _rpi --rpi-run-app '{{configurations}}'
 
 # Copying application to Raspberry Pi device and then starting application
-sync:
-    @just _rpi --rpi-copy-code
+sync configurations="{}":
+    @just _rpi --rpi-copy-code '{{configurations}}'
 
 # Live stream from Raspberry Pi device tmux session
-tmux:
-    @just _rpi --rpi-tmux
+tmux configurations="{}":
+    @just _rpi --rpi-tmux '{{configurations}}'
