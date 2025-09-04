@@ -275,11 +275,16 @@ def main() -> None:
         action='store_true',
         help='Live stream from Raspberry Pi device tmux session',
     )
+    parser.add_argument(
+        '--config-file',
+        type=Path,
+        required=True,
+        help='Path to the configuration file',
+    )
     args = parser.parse_args()
 
-    if not any(vars(args).values()):
-        error_message = 'No arguments provided. Please use a command-line flag.'
-        raise TypeError(error_message)
+    print(f'Config file: {args.config_file}')
+    exit()
 
     with SshClientHandler(CONFIG_FILE) as ssh_client:
         if args.rpi_check_app:

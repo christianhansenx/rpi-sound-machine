@@ -2,14 +2,15 @@
 list-recipes:
     @just --list --unsorted
 
-# Path to the RPI remote tools justfile location
 RPI_REMOTE_TOOLS_PATH := "rpi-remote-tools"
+RPI_REMOTE_TOOLS_CONFIG_FILE := "rpi_remote_tools_config.yaml"
 # Raspberry Pi Remote Tools recipes.
-rpi rpi_args='':
+rpi rpi_args="":
     @if [ -n "{{rpi_args}}" ]; then \
-        just --justfile "{{RPI_REMOTE_TOOLS_PATH}}/justfile" "{{rpi_args}}"; \
+        just --justfile {{RPI_REMOTE_TOOLS_PATH}}/justfile \
+            {{rpi_args}} config_file_arg={{RPI_REMOTE_TOOLS_CONFIG_FILE}}; \
     else \
-        just --justfile "{{RPI_REMOTE_TOOLS_PATH}}/justfile"; \
+        just --justfile {{RPI_REMOTE_TOOLS_PATH}}/justfile; \
     fi
 
 # Check linting with ruff
