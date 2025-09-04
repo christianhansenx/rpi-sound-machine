@@ -2,6 +2,7 @@
 import argparse
 import enum
 import errno
+import json
 import sys
 import threading
 import time
@@ -283,7 +284,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print(f'{args.configurations}')
+    print(f'{args.configurations=}')
+    data = json.loads(args.configurations)
+    print("Parsed JSON:", data)
     exit()
 
     with SshClientHandler(CONFIG_FILE) as ssh_client:
