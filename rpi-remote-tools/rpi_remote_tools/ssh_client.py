@@ -38,7 +38,7 @@ class SshClient:
         """Upload files to remote device like rsync."""
         exclude = exclude_patterns or []
         script_dir = Path(__file__).parent
-        local_dir = (script_dir / '..' / root_directory).resolve()
+        local_dir = (script_dir / '..' / '..' / root_directory).resolve()
 
         # Use PurePosixPath for remote paths
         remote_dir = PurePosixPath(f'/home/{self.username}') / root_directory
