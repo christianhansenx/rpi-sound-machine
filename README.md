@@ -71,6 +71,8 @@ If you are on Windows, then run the **just** recipes in Git Bash (download from 
 Instead of having to do manually SSH into the RPI, then many operations can be applied by using the **just rpi** recipes in **rpi-remote-tools/justfile**.<br>
 To get a list of RPI remote tool commands then execute ```just rpi``` without arguments.
 
-Some of the connections to the RPI is using [tmux](https://github.com/tmux/tmux/wiki) terminal on the RPI.<br>
+Example of running a command (tmux session): ```just rpi tmux```.
+
+Some of the connections to the RPI are using [tmux](https://github.com/tmux/tmux/wiki) terminal on the RPI.<br>
 
 When running tmux from tools terminal, it can be stopped by pressing **enter** key.

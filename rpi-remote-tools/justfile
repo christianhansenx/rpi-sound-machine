@@ -1,5 +1,5 @@
 RPI_REMOTE_TOOLS_PATH := "rpi_remote_tools"
-RPI_REMOTE_TOOLS_MODULE := "tools"
+RPI_REMOTE_TOOLS_MODULE := "rpi_remote"
 
 _rpi command configurations:
     @uv run --quiet --project {{RPI_REMOTE_TOOLS_PATH}} \

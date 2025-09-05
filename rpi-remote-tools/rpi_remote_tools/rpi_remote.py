@@ -1,4 +1,4 @@
-"""Tools for RPI Sound Machine."""
+"""Tool functions for RPI Remote control."""
 import argparse
 import enum
 import errno
@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 from paramiko import SFTPClient
+from pydantic import BaseModel, Field
 
 from . import APPLICATION_FILE, LOCAL_PROJECT_DIRECTORY, TMUX_SESSION_NAME  # Imports from __ini__.py
 from .ssh_client import SshClient, SshClientHandler
