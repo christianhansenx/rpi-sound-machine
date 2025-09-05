@@ -1,8 +1,12 @@
 # TODO (features and improvements)
 
 ## Improvements
+
 - start app when RPI boots
-- locate files in .config
+- locate files in .config on the RPI
+- provide as configs to RPI remote tools:<br>
+UPLOAD_EXCLUDES_FOLDERS = ['.venv', '.git', '.ruff_cache', '__pycache__']<br>
+UPLOAD_EXCLUDES_FILES = []  # Add specific file names here if needed
 - Error when start plying new sound:<br>
 192.168.10.102 - - [01/Sep/2025 21:47:35] "GET /toggle_play/aircraft-cabin-sound-129404.mp3 HTTP/1.1" 200<br>
 ALSA lib pcm.c:8570:(snd_pcm_recover) underrun occurred

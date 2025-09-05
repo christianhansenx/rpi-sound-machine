@@ -2,14 +2,15 @@
 list-recipes:
     @just --list --unsorted
 
-# Path to the RPI remote tools justfile location
+RPI_REMOTE_TOOLS_CONFIGURATIONS := '{"local_project_directory": "rpi_sound_machine", "application_file": "sound_machine.py", "tmux_session_name": "sound"}'
 RPI_REMOTE_TOOLS_PATH := "rpi-remote-tools"
 # Raspberry Pi Remote Tools recipes.
-rpi rpi_args='':
+rpi rpi_args="":
     @if [ -n "{{rpi_args}}" ]; then \
-        just --justfile "{{RPI_REMOTE_TOOLS_PATH}}/justfile" "{{rpi_args}}"; \
+        just --justfile {{RPI_REMOTE_TOOLS_PATH}}/justfile \
+            {{rpi_args}} '{{RPI_REMOTE_TOOLS_CONFIGURATIONS}}'; \
     else \
-        just --justfile "{{RPI_REMOTE_TOOLS_PATH}}/justfile"; \
+        just --justfile {{RPI_REMOTE_TOOLS_PATH}}/justfile; \
     fi
 
 # Check linting with ruff
