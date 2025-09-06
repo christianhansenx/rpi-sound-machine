@@ -69,9 +69,6 @@ ExecStop=/usr/bin/tmux kill-session -t {service_name}
 [Install]
 WantedBy=multi-user.target
 """
-
-    print(f'{service_file_content=}')
-
     command = f"echo '{service_file_content}' | sudo tee /etc/systemd/system/{service_file_name} > /dev/null"
     _stdin, stdout, stderr = ssh_client.client.exec_command(command)
     if stdout.channel.recv_exit_status() != 0:

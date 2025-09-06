@@ -269,12 +269,14 @@ def favicon() -> BaseResponse:
     return send_from_directory(str(static_folder), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 
-if __name__ == '__main__':
+def main() -> None:
+    """Prepare band run the Flask app."""
     SOUND_DIR.mkdir(exist_ok=True)
     if not FAVORITES_FILE.is_file():
         FAVORITES_FILE.touch()
-
-    # Load volume on startup
     sound_control.load_volume()
-
     app.run(host='0.0.0.0', port=5000, debug=False)  # noqa: S104 Possible binding to all interfaces
+
+
+if __name__ == '__main__':
+    main()
