@@ -254,7 +254,7 @@ def _tmux_terminal_streaming(
             print(f'WARNING: No running process found of "{process_name}"')
             break
         time.sleep(0.2)
-    print('\nPress Enter to exit.')
+    print('Press Enter to exit remote tmux session.\n')
     try:
         while not stop_event.is_set():
             line = remote_tmux_log.readline()
