@@ -149,17 +149,12 @@ def rpi_tmux(
     """
     tmux_log_file_path = TMUX_LOG_PATH.format(file_name=config.local_project_directory)
 
-    # Restart session if required
+    # Restart tmux session if required
     _install_tmux(ssh_client)
     tmux_command = None
     if restart_application:
-        tmux_command = (
-            f'tmux kill-session -t {config.tmux_session_name} 2>/dev/null; '
-            f'rm {tmux_log_file_path} 2>/dev/null; '
-            f'tmux new-session -d -s {config.tmux_session_name} \\; '
-            f'pipe-pane -t {config.tmux_session_name}:0.0 -o "cat >> {tmux_log_file_path}"'
-        )
-        ssh_client.client.exec_command(tmux_command)
+        remote_dir = f'/home/{ssh_client.username}/{config.local_project_directory}'
+        ssh_client.client.exec_command(f'{remote_dir}/start-mux.sh')
 
     else:
         _stdin, stdout, stderr = ssh_client.client.exec_command(f'tmux has-session -t {config.tmux_session_name}')
@@ -212,8 +207,7 @@ def _tmux_terminal(
     # Start application (if required)
     if restart_application:
         remote_dir = f'/home/{ssh_client.username}/{config.local_project_directory}'
-        command = f'cd {remote_dir} && uv run --no-group dev {config.application_file}'
-        ssh_client.client.exec_command(f'tmux send-keys -t {config.tmux_session_name} "{command}" C-m')
+        ssh_client.client.exec_command(f'{remote_dir}/start.sh')
         print(f'Application {config.application_file} on {ssh_client.connection} has been started')
 
     _tmux_terminal_streaming(ssh_client, process_name, tmux_log_file_path, config, sftp_client)
@@ -293,7 +287,7 @@ def _install_tmux(ssh_client: SshClient) -> None:
             raise InstallRpiTmuxError(error)
 
 
-def rpi_upload_app(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
+def rpi_upload_app_files(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
     """Upload application files to RPI."""
     all_exclude_patterns = UPLOAD_EXCLUDES_FOLDERS + UPLOAD_EXCLUDES_FILES
     ssh_client.upload_recursive(config.local_project_directory, all_exclude_patterns)
@@ -361,7 +355,7 @@ def main() -> None:
             rpi_tmux(ssh_client, rpi_application_process_name, config)
         elif args.rpi_copy_code:
             rpi_kill_app(ssh_client, rpi_application_process_name, msg_no_kill=False)
-            rpi_upload_app(ssh_client, config)
+            rpi_upload_app_files(ssh_client, config)
             rpi_tmux(ssh_client, rpi_application_process_name, config, restart_application=True)
 
 

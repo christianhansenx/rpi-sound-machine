@@ -6,6 +6,7 @@ from threading import Timer
 
 import pygame
 from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, url_for
+from rpi_installation import rpi_installation as install
 from werkzeug.utils import secure_filename
 from werkzeug.wrappers import Response as BaseResponse
 
@@ -269,8 +270,8 @@ def favicon() -> BaseResponse:
     return send_from_directory(str(static_folder), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 
-if __name__ == '__main__':
-    from installation import main as install
+def main() -> None:
+    """Prepare and start Flask application."""
     install()
 
     SOUND_DIR.mkdir(exist_ok=True)
@@ -281,3 +282,7 @@ if __name__ == '__main__':
     sound_control.load_volume()
 
     app.run(host='0.0.0.0', port=5000, debug=False)  # noqa: S104 Possible binding to all interfaces
+
+
+if __name__ == '__main__':
+    main()
