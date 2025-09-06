@@ -5,10 +5,6 @@ RPI_REMOTE_TOOLS_MODULE := "rpi_remote"
 list-recipes:
     @just --list --unsorted
 
-# Prepare Raspberry Pi device to start application as a service
-prep configurations="{}":
-    @just _rpi --rpi-prep --configurations '{{configurations}}'
-
 # Checking about application is already running on Raspberry Pi device.
 check configurations="{}":
     @just _rpi --rpi-check-app '{{configurations}}'

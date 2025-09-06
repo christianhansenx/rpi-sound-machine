@@ -37,7 +37,7 @@ def app() -> Flask:
 
     """
     # Now it's safe to import the app (qa PLC0415 `import` should be at the top-level of a file)
-    from rpi_sound_machine.sound_machine import app as flask_app  # noqa: PLC0415
+    from rpi_sound_machine.main import app as flask_app  # noqa: PLC0415
     return flask_app
 
 
@@ -60,7 +60,7 @@ def setup_test_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> d
         Test configurations.
 
     """
-    from rpi_sound_machine import sound_machine  # noqa: PLC0415 `import` should be at the top-level of a file
+    from rpi_sound_machine import main as sound_machine  # noqa: PLC0415 `import` should be at the top-level of a file
     sounds_dir = tmp_path / 'sounds'
     sounds_dir.mkdir()
     favorites_file = tmp_path / 'favorites.txt'
@@ -198,7 +198,7 @@ def test_set_volume(client: FlaskClient, setup_test_environment: dict[str, Any],
     """Test setting the volume."""
     sound_machine = setup_test_environment['sound_machine']
     # Mock the schedule_volume_save function to prevent file writing
-    mocker.patch('rpi_sound_machine.sound_machine.sound_control.schedule_volume_save')
+    mocker.patch('rpi_sound_machine.main.sound_control.schedule_volume_save')
 
     client.get('/toggle_play/test.wav')
 

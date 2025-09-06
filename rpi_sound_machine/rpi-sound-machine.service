@@ -1,0 +1,12 @@
+[Unit]
+Description=rpi-sound-machine service
+After=network.target
+
+[Service]
+Type=forking
+User=pi
+ExecStart=/usr/local/bin/start-rpi-sound-machine.sh
+ExecStop=/usr/bin/tmux kill-session -t sound
+
+[Install]
+WantedBy=multi-user.target

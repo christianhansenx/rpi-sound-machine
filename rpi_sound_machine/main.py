@@ -270,6 +270,9 @@ def favicon() -> BaseResponse:
 
 
 if __name__ == '__main__':
+    from installation import main as install
+    install()
+
     SOUND_DIR.mkdir(exist_ok=True)
     if not FAVORITES_FILE.is_file():
         FAVORITES_FILE.touch()

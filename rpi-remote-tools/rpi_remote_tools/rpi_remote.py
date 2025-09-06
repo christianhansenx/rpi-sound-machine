@@ -33,10 +33,6 @@ class InstallRpiTmuxError(Exception):
     """Could not install tmux on RPI."""
 
 
-class RpiPreparationError(Exception):
-    """Could not prepare RPI for application service."""
-
-
 class KillSignals(enum.StrEnum):
     """Kill signals for stopping application on RPI."""
 
@@ -297,77 +293,6 @@ def _install_tmux(ssh_client: SshClient) -> None:
             raise InstallRpiTmuxError(error)
 
 
-def rpi_preparation(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
-    """Prepare RPI for running application as a service."""
-    print(f'Preparing RPI on {ssh_client.connection}')
-
-    _install_tmux(ssh_client)
-
-    service_name = config.tmux_session_name
-    service_file_name = f'{service_name}.service'
-    start_script_path = f'/usr/local/bin/start_{service_name}.sh'
-    tmux_log_file_path = TMUX_LOG_PATH.format(file_name=config.local_project_directory)
-
-    # Stop and disable the service if it exists
-    ssh_client.client.exec_command(f"sudo systemctl stop {service_file_name}")
-    ssh_client.client.exec_command(f"sudo systemctl disable {service_file_name}")
-
-    # Create the start script
-    start_script_content = f"""#!/bin/bash
-tmux kill-session -t {service_name} 2>/dev/null
-rm {tmux_log_file_path} 2>/dev/null
-tmux new-session -d -s {service_name}
-tmux pipe-pane -t {service_name}:0.0 -o "cat >> {tmux_log_file_path}"
-tmux send-keys -t {service_name} 'cd /home/{ssh_client.username}/{config.local_project_directory} && uv run --quiet --no-group dev {config.application_file}' C-m
-"""
-
-    command = f"echo '{start_script_content}' | sudo tee {start_script_path} > /dev/null"
-    _stdin, stdout, stderr = ssh_client.client.exec_command(command)
-    if stdout.channel.recv_exit_status() != 0:
-        raise RpiPreparationError(f"Failed to create start script: {stderr.read().decode()}")
-
-    command = f"sudo chmod +x {start_script_path}"
-    _stdin, stdout, stderr = ssh_client.client.exec_command(command)
-    if stdout.channel.recv_exit_status() != 0:
-        raise RpiPreparationError(f"Failed to make start script executable: {stderr.read().decode()}")
-
-    # Create the service file
-    service_file_content = f"""[Unit]
-Description={service_name} service
-After=network.target
-
-[Service]
-Type=forking
-User={ssh_client.username}
-ExecStart={start_script_path}
-ExecStop=/usr/bin/tmux kill-session -t {service_name}
-
-[Install]
-WantedBy=multi-user.target
-"""
-
-    command = f"echo '{service_file_content}' | sudo tee /etc/systemd/system/{service_file_name} > /dev/null"
-    _stdin, stdout, stderr = ssh_client.client.exec_command(command)
-    if stdout.channel.recv_exit_status() != 0:
-        raise RpiPreparationError(f"Failed to create service file: {stderr.read().decode()}")
-
-    # Reload, enable and start the service
-    commands = [
-        "sudo systemctl daemon-reload",
-        f"sudo systemctl enable {service_file_name}",
-        f"sudo systemctl start {service_file_name}",
-    ]
-    for cmd in commands:
-        print(f"Executing: {cmd}")
-        _stdin, stdout, stderr = ssh_client.client.exec_command(cmd)
-        exit_status = stdout.channel.recv_exit_status()
-        if exit_status != 0:
-            raise RpiPreparationError(f"Failed to execute '{cmd}': {stderr.read().decode()}")
-        print(f"Successfully executed '{cmd}'")
-
-    print(f"Service '{service_name}' is set up and running.")
-
-
 def rpi_upload_app(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
     """Upload application files to RPI."""
     all_exclude_patterns = UPLOAD_EXCLUDES_FOLDERS + UPLOAD_EXCLUDES_FILES
@@ -388,11 +313,6 @@ def main() -> None:
     print(f'Python version: {sys.version_info.major}.{sys.version_info.minor}')
 
     parser = argparse.ArgumentParser(description='Raspberry Pi Remote Tools etc.')
-    parser.add_argument(
-        '--rpi-prep',
-        action='store_true',
-        help='Prepare Raspberry Pi to run application as a service.',
-    )
     parser.add_argument(
         '--rpi-check-app',
         action='store_true',
@@ -430,9 +350,7 @@ def main() -> None:
     rpi_application_process_name = f'python3 {config.application_file}'
 
     with SshClientHandler(RPI_HOST_CONFIG_FILE) as ssh_client:
-        if args.rpi_prep:
-            rpi_preparation(ssh_client, config)
-        elif args.rpi_check_app:
+        if args.rpi_check_app:
             rpi_check_running_app(ssh_client, rpi_application_process_name)
         elif args.rpi_kill_app:
             rpi_kill_app(ssh_client, rpi_application_process_name)
