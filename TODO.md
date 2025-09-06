@@ -2,7 +2,6 @@
 
 ## Improvements
 
-- start app when RPI boots
 - locate files in .config on the RPI
 - provide as configs to RPI remote tools:<br>
 UPLOAD_EXCLUDES_FOLDERS = ['.venv', '.git', '.ruff_cache', '__pycache__']<br>

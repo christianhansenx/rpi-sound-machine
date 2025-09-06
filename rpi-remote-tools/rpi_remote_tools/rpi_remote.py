@@ -9,8 +9,8 @@ import time
 from pathlib import Path
 
 from paramiko import SFTPClient
-from pydantic import BaseModel, Field
 
+from .rpi_installation import RpiInstallationError, RpiRemoteConfig
 from .ssh_client import SshClient, SshClientHandler
 
 UPLOAD_EXCLUDES_FOLDERS = ['.venv', '.git', '.ruff_cache', '__pycache__']
@@ -39,14 +39,6 @@ class KillSignals(enum.StrEnum):
     SIGTERM = '-15'  # Terminate gracefully
     SIGINT = '-2'  # Ctrl+C
     SIGKILL = '-9'  # Force kill
-
-
-class RpiRemoteToolsConfig(BaseModel):
-    """Pydantic model for rpi-remote-tools configuration."""
-
-    local_project_directory: str = Field(..., description='The local project directory to sync to the RPI.')
-    application_file: str = Field(..., description='The main application file to run on the RPI.')
-    tmux_session_name: str = Field(..., description='The name of the tmux session to use on the RPI.')
 
 
 def rpi_check_running_app(ssh_client: SshClient, process_name: str, *, message_no_process: bool = True) -> list[str]:
@@ -135,7 +127,7 @@ def _rpi_check_process_id(ssh_client: SshClient, proc_id: str) -> bool:
 def rpi_tmux(
         ssh_client: SshClient,
         process_name: str,
-        config: RpiRemoteToolsConfig,
+        config: RpiRemoteConfig,
         *,
         restart_application: bool = False,
 ) -> None:
@@ -147,17 +139,14 @@ def rpi_tmux(
         StartRpiTmuxError: If tmux session could not be started.
 
     """
-    tmux_log_file_path = TMUX_LOG_PATH.format(file_name=config.local_project_directory)
-
     # Restart session if required
-    _install_tmux(ssh_client)
     tmux_command = None
     if restart_application:
         tmux_command = (
             f'tmux kill-session -t {config.tmux_session_name} 2>/dev/null; '
-            f'rm {tmux_log_file_path} 2>/dev/null; '
+            f'rm {config.tmux_log_file_path} 2>/dev/null; '
             f'tmux new-session -d -s {config.tmux_session_name} \\; '
-            f'pipe-pane -t {config.tmux_session_name}:0.0 -o "cat >> {tmux_log_file_path}"'
+            f'pipe-pane -t {config.tmux_session_name}:0.0 -o "cat >> {config.tmux_log_file_path}"'
         )
         ssh_client.client.exec_command(tmux_command)
 
@@ -174,21 +163,21 @@ def rpi_tmux(
         _stdin, stdout, stderr = ssh_client.client.exec_command(tmux_check_pipe)
         if stdout.read().decode()[0] != '1':
             tmux_command = (
-                f'rm {tmux_log_file_path} 2>/dev/null; '
-                f'tmux pipe-pane -t {config.tmux_session_name}:0.0 -o "cat >> {tmux_log_file_path}"'
+                f'rm {config.tmux_log_file_path} 2>/dev/null; '
+                f'tmux pipe-pane -t {config.tmux_session_name}:0.0 -o "cat >> {config.tmux_log_file_path}"'
             )
 
     if tmux_command:
         ssh_client.client.exec_command(tmux_command)
         time.sleep(1)
 
-    _tmux_terminal(ssh_client, process_name, tmux_log_file_path, config, restart_application=restart_application)
+    _tmux_terminal(ssh_client, process_name, config.tmux_log_file_path, config, restart_application=restart_application)
 
 
 def _tmux_terminal(
         ssh_client: SshClient, process_name: str,
         tmux_log_file_path: str,
-        config: RpiRemoteToolsConfig,
+        config: RpiRemoteConfig,
         *,
         restart_application: bool,
 ) -> None:
@@ -223,7 +212,7 @@ def _tmux_terminal_streaming(
     ssh_client: SshClient,
     process_name: str,
     tmux_log_file_path: str,
-    config: RpiRemoteToolsConfig,
+    config: RpiRemoteConfig,
     sftp_client: SFTPClient,
 ) -> None:
     tmux_session_msg = (
@@ -269,43 +258,20 @@ def _tmux_terminal_streaming(
         print('tmux closed')
 
 
-def _install_tmux(ssh_client: SshClient) -> None:
-    """Installs tmux on the remote Raspberry Pi (if not already installed).
-
-    Raises:
-        InstallRpiTmuxError: If installation fails.
-
-    """
-    _stdin, stdout, stderr = ssh_client.client.exec_command('which tmux')
-    exit_code = stdout.channel.recv_exit_status()
-    if exit_code != 0:
-        print(f'Installing tmux on {ssh_client.connection}')
-        _stdin, stdout, stderr = ssh_client.client.exec_command('sudo apt install tmux -y')
-        stdout_output = stdout.read().decode()
-        stderr_output = stderr.read().decode()
-        for line in stdout_output.splitlines():
-            print(f'\t{line}')
-        for line in stderr_output.splitlines():
-            print(f'\t{line}')
-        exit_code = stdout.channel.recv_exit_status()
-        if exit_code != 0:
-            error = f'Installation failed on {ssh_client.connection}:\n{stderr_output.strip()}'
-            raise InstallRpiTmuxError(error)
-
-
-def rpi_upload_app(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
+def rpi_upload_app(ssh_client: SshClient, config: RpiRemoteConfig) -> None:
     """Upload application files to RPI."""
     all_exclude_patterns = UPLOAD_EXCLUDES_FOLDERS + UPLOAD_EXCLUDES_FILES
     ssh_client.upload_recursive(config.local_project_directory, all_exclude_patterns)
 
 
-def _get_configurations(configurations_content: str) -> RpiRemoteToolsConfig:
+def _get_configurations(configurations_content: str) -> RpiRemoteConfig:
     try:
         config_data = json.loads(configurations_content)
     except json.JSONDecodeError as exception:
         error_msg = f'Error decoding configurations as JSON:\n{configurations_content}\n'
         raise ValueError(error_msg) from exception
-    return RpiRemoteToolsConfig(**config_data)
+    config_data['tmux_log_file_path'] = TMUX_LOG_PATH.format(file_name=config_data['local_project_directory'])
+    return RpiRemoteConfig(**config_data)
 
 
 def main() -> None:
