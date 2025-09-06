@@ -30,7 +30,12 @@ def mock_pygame() -> Generator[None, Any]:
 
 @pytest.fixture
 def app() -> Flask:
-    """Fixture for the Flask app."""
+    """Fixture for the Flask app.
+
+    Returns:
+        The Flask application object.
+
+    """
     # Now it's safe to import the app (qa PLC0415 `import` should be at the top-level of a file)
     from rpi_sound_machine.sound_machine import app as flask_app  # noqa: PLC0415
     return flask_app
@@ -38,13 +43,23 @@ def app() -> Flask:
 
 @pytest.fixture
 def client(app: Flask) -> FlaskClient:
-    """Provide a test client for the app."""
+    """Provide a test client for the app.
+
+    Returns:
+        A test client for the Flask application.
+
+    """
     return app.test_client()
 
 
 @pytest.fixture
 def setup_test_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
-    """Set up a temporary test environment."""
+    """Set up a temporary test environment.
+
+    Returns:
+        Test configurations.
+
+    """
     from rpi_sound_machine import sound_machine  # noqa: PLC0415 `import` should be at the top-level of a file
     sounds_dir = tmp_path / 'sounds'
     sounds_dir.mkdir()
@@ -82,21 +97,20 @@ def test_home_page_no_sounds(client: FlaskClient, setup_test_environment: dict[s
     (setup_test_environment['sounds_dir'] / 'test.wav').unlink()
     response = client.get('/')
     assert response.status_code == HTTPStatus.OK
-    assert b'No sound files uploaded yet' in response.data
+    assert b'No sound files uploaded' in response.data
 
 
-def test_home_page_with_sounds(client: FlaskClient, setup_test_environment: dict[str, Any]) -> None:
+@pytest.mark.usefixtures('setup_test_environment')
+def test_home_page_with_sounds(client: FlaskClient) -> None:
     """Test the home page when sounds are present."""
-    del(setup_test_environment)  # Avoid qa ARG001 Unused function argument
     response = client.get('/')
     assert response.status_code == HTTPStatus.OK
     assert b'test.wav' in response.data
 
 
-def test_toggle_play(client: FlaskClient, setup_test_environment: dict[str, Any]) -> None:
+@pytest.mark.usefixtures('setup_test_environment')
+def test_toggle_play(client: FlaskClient) -> None:
     """Test toggling play and stop for a sound."""
-    del(setup_test_environment)  # Avoid qa ARG001 Unused function argument
-
     # Play a sound
     response = client.get('/toggle_play/test.wav')
     assert response.status_code == HTTPStatus.OK
@@ -112,9 +126,9 @@ def test_toggle_play(client: FlaskClient, setup_test_environment: dict[str, Any]
     assert pygame_mock.mixer.Sound.return_value.stop.called
 
 
-def test_pause_resume(client: FlaskClient, setup_test_environment: dict[str, Any]) -> None:
+@pytest.mark.usefixtures('setup_test_environment')
+def test_pause_resume(client: FlaskClient) -> None:
     """Test pausing and resuming all sounds."""
-    del(setup_test_environment)  # Avoid qa ARG001 Unused function argument
     client.get('/toggle_play/test.wav')
 
     # Pause
@@ -130,9 +144,9 @@ def test_pause_resume(client: FlaskClient, setup_test_environment: dict[str, Any
     assert pygame_mock.mixer.unpause.called
 
 
-def test_stop_all(client: FlaskClient, setup_test_environment: dict[str, Any]) -> None:
+@pytest.mark.usefixtures('setup_test_environment')
+def test_stop_all(client: FlaskClient) -> None:
     """Test stopping all sounds."""
-    del(setup_test_environment)  # Avoid qa ARG001 Unused function argument
     client.get('/toggle_play/test.wav')
 
     response = client.get('/stop')

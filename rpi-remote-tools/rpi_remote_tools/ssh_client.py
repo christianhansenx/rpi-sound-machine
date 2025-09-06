@@ -12,7 +12,7 @@ import yaml
 class SshClient:
     """SSH Client containing SSH connection client and some configuration values."""
 
-    def __init__(self, client: paramiko.SSHClient, config: dict[str,str]) -> None:
+    def __init__(self, client: paramiko.SSHClient, config: dict[str, str]) -> None:
         """Set client to a paramiko ssh client."""
         self._client = client
         self._username = config['username']
@@ -129,9 +129,13 @@ class SshClientHandler:
         self._client = None
 
     def __enter__(self) -> SshClient:
-        """Open a SSH connection."""
-        print(f'Create SSH connection to {self._config['username']}@{self._config['hostname']}')
-        print()
+        """Open a SSH connection.
+
+        Returns:
+            An SshClient instance with an active SSH connection.
+
+        """
+        print(f'\nCreate SSH connection to {self._config['username']}@{self._config['hostname']}')
         client = paramiko.SSHClient()
 
         # Linting: S507 Paramiko call with policy set to automatically trust the unknown host key
@@ -151,12 +155,11 @@ class SshClientHandler:
         exc_value: BaseException | None,
         traceback: types.TracebackType | None,
     ) -> None:
-       """Close SSH connection."""
-       if self._client:
+        """Close SSH connection."""
+        if self._client:
             self._client.client.close()
             print()
             print('SSH connection is closed')
-
 
     @staticmethod
     def _load_or_create_config(config_file: Path) -> None:
@@ -165,14 +168,12 @@ class SshClientHandler:
                 config = yaml.safe_load(file) or {}
         else:
             config = {}
-            print(f'Configuration file {config_file} has not been created yet. Please enter the details:')
-            print('Please enter the details:')
+            print(f'\nConfiguration file {config_file} has not been created yet.')
+            print(f'Please enter details (will be saved to {config_file}):')
             config['hostname'] = input(' Raspberry Pi hostname: ').strip()
             config['username'] = input(' Raspberry Pi username: ').strip()
             config['password'] = getpass.getpass(' Password: ')
             with Path.open(config_file, 'w') as file:
                 yaml.safe_dump(config, file)
-            print(f'Configuration saved to {config_file}')
-        print(f'Raspberry Pi hostname: {config['hostname']}')
-        print(f'Raspberry Pi username: {config['username']}')
+            print(f'Configurations saved to {config_file}')
         return config

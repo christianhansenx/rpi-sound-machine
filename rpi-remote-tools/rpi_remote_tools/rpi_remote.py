@@ -33,7 +33,7 @@ class InstallRpiTmuxError(Exception):
     """Could not install tmux on RPI."""
 
 
-class KillSignals(str, enum.Enum):
+class KillSignals(enum.StrEnum):
     """Kill signals for stopping application on RPI."""
 
     SIGTERM = '-15'  # Terminate gracefully
@@ -52,7 +52,9 @@ class RpiRemoteToolsConfig(BaseModel):
 def rpi_check_running_app(ssh_client: SshClient, process_name: str, *, message_no_process: bool = True) -> list[str]:
     """Check about processes are running.
 
-    return: list of running process id's
+    Returns:
+        list of running process id's
+
     """
     proc_ids = _rpi_check_running_app(ssh_client, process_name)
     valid_proc_ids = [pid for pid in proc_ids if pid]
@@ -65,13 +67,18 @@ def rpi_check_running_app(ssh_client: SshClient, process_name: str, *, message_n
 
 
 def _rpi_check_running_app(ssh_client: SshClient, process_name: str) -> list[str]:
-    stdin, stdout, stderr = ssh_client.client.exec_command(f'pgrep -f "{process_name}"')
+    _stdin, stdout, _stderr = ssh_client.client.exec_command(f'pgrep -f "{process_name}"')
     proc_ids = stdout.read().decode('utf-8').strip().split('\n')
     return [pid for pid in proc_ids if pid]
 
 
 def rpi_kill_app(ssh_client: SshClient, process_name: str, *, msg_no_kill: bool = True) -> None:
-    """Stop application on RPI."""
+    """Stop application on RPI.
+
+    Raises:
+        KillRpiProcessError: If application could not get killed.
+
+    """
     if not (proc_ids := _rpi_check_running_app(ssh_client, process_name)):
         if msg_no_kill:
             print('No running process found, nothing to kill')
@@ -81,7 +88,7 @@ def rpi_kill_app(ssh_client: SshClient, process_name: str, *, msg_no_kill: bool 
     for kill_signal in KillSignals:
         for pid in proc_ids:
             if _rpi_check_process_id(ssh_client, pid):
-                stdin, stdout, stderr_kill = ssh_client.client.exec_command(f'kill {kill_signal.value} {pid}')
+                _stdin, stdout, stderr_kill = ssh_client.client.exec_command(f'kill {kill_signal.value} {pid}')
                 exit_status = stdout.channel.recv_exit_status()
                 if exit_status != 0:
                     error = (
@@ -114,8 +121,13 @@ def _rpi_wait_no_kill_error(ssh_client: SshClient, process_name: str, kill_signa
 
 
 def _rpi_check_process_id(ssh_client: SshClient, proc_id: str) -> bool:
-    """Check about process is running."""
-    stdin, stdout, stderr = ssh_client.client.exec_command(f'ps -p {proc_id}')
+    """Check about process is running.
+
+    Returns:
+        True if process is running.
+
+    """
+    _stdin, stdout, _stderr = ssh_client.client.exec_command(f'ps -p {proc_id}')
     exit_status = stdout.channel.recv_exit_status()
     return exit_status == 0
 
@@ -127,7 +139,14 @@ def rpi_tmux(
         *,
         restart_application: bool = False,
 ) -> None:
-    """Open tmux session on RPI."""
+    """Open tmux session on RPI.
+
+    If restart_application is True, the application will be started in the tmux session.
+
+    Raises:
+        StartRpiTmuxError: If tmux session could not be started.
+
+    """
     tmux_log_file_path = TMUX_LOG_PATH.format(file_name=config.local_project_directory)
 
     # Restart session if required
@@ -143,7 +162,7 @@ def rpi_tmux(
         ssh_client.client.exec_command(tmux_command)
 
     else:
-        stdin, stdout, stderr = ssh_client.client.exec_command(f'tmux has-session -t {config.tmux_session_name}')
+        _stdin, stdout, stderr = ssh_client.client.exec_command(f'tmux has-session -t {config.tmux_session_name}')
         exit_code = stdout.channel.recv_exit_status()
         if exit_code != 0:
             error = (
@@ -152,7 +171,7 @@ def rpi_tmux(
             )
             raise StartRpiTmuxError(error)
         tmux_check_pipe = f'tmux display-message -p -t {config.tmux_session_name}:0.0 "#{{pane_pipe}}"'
-        stdin, stdout, stderr = ssh_client.client.exec_command(tmux_check_pipe)
+        _stdin, stdout, stderr = ssh_client.client.exec_command(tmux_check_pipe)
         if stdout.read().decode()[0] != '1':
             tmux_command = (
                 f'rm {tmux_log_file_path} 2>/dev/null; '
@@ -235,7 +254,7 @@ def _tmux_terminal_streaming(
             print(f'WARNING: No running process found of "{process_name}"')
             break
         time.sleep(0.2)
-    print('\nPress Enter to exit.')
+    print('Press Enter to exit remote tmux session.\n')
     try:
         while not stop_event.is_set():
             line = remote_tmux_log.readline()
@@ -251,12 +270,17 @@ def _tmux_terminal_streaming(
 
 
 def _install_tmux(ssh_client: SshClient) -> None:
-    """Installs tmux on the remote Raspberry Pi (if not already installed)."""
-    stdin, stdout, stderr = ssh_client.client.exec_command('which tmux')
+    """Installs tmux on the remote Raspberry Pi (if not already installed).
+
+    Raises:
+        InstallRpiTmuxError: If installation fails.
+
+    """
+    _stdin, stdout, stderr = ssh_client.client.exec_command('which tmux')
     exit_code = stdout.channel.recv_exit_status()
     if exit_code != 0:
         print(f'Installing tmux on {ssh_client.connection}')
-        stdin, stdout, stderr = ssh_client.client.exec_command('sudo apt install tmux -y')
+        _stdin, stdout, stderr = ssh_client.client.exec_command('sudo apt install tmux -y')
         stdout_output = stdout.read().decode()
         stderr_output = stderr.read().decode()
         for line in stdout_output.splitlines():
@@ -273,6 +297,15 @@ def rpi_upload_app(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
     """Upload application files to RPI."""
     all_exclude_patterns = UPLOAD_EXCLUDES_FOLDERS + UPLOAD_EXCLUDES_FILES
     ssh_client.upload_recursive(config.local_project_directory, all_exclude_patterns)
+
+
+def _get_configurations(configurations_content: str) -> RpiRemoteToolsConfig:
+    try:
+        config_data = json.loads(configurations_content)
+    except json.JSONDecodeError as exception:
+        error_msg = f'Error decoding configurations as JSON:\n{configurations_content}\n'
+        raise ValueError(error_msg) from exception
+    return RpiRemoteToolsConfig(**config_data)
 
 
 def main() -> None:
@@ -313,8 +346,7 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-    config_data = json.loads(args.configurations)
-    config = RpiRemoteToolsConfig(**config_data)
+    config = _get_configurations(args.configurations)
     rpi_application_process_name = f'python3 {config.application_file}'
 
     with SshClientHandler(RPI_HOST_CONFIG_FILE) as ssh_client:
