@@ -41,7 +41,12 @@ class SoundControl:
         self.sound_objects = {}
 
     def get_state_as_dict(self) -> dict[str, object]:
-        """Return the current state of the SoundControl as a JSON-serializable dictionary."""
+        """Return the current state of the SoundControl.
+
+        Returns:
+            State as JSON-serializable dictionary.
+
+        """
         return {
             'paused': self.paused,
             'last_play_time': self.last_play_time,
@@ -216,7 +221,7 @@ def upload_file() -> BaseResponse:
     files = request.files.getlist('file')
 
     for file in files:
-        if file and file.filename != '':
+        if file and file.filename:
             filename = secure_filename(file.filename)
             file_path = SOUND_DIR / filename
             file.save(file_path)
