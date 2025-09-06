@@ -83,8 +83,26 @@ def install_service():
     run_command(f"sudo systemctl start {SERVICE_NAME}")
     print("Service installation/update complete.")
 
+def is_uv_installed():
+    """Check if uv is installed."""
+    try:
+        run_command("which uv", check=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+def install_uv():
+    """Install uv."""
+    if not is_uv_installed():
+        print("uv not found. Installing...")
+        run_command("curl -LsSf https://astral.sh/uv/install.sh | sh")
+        print("uv installed successfully.")
+    else:
+        print("uv is already installed.")
+
 def main():
     """Main function."""
+    install_uv()
     install_tmux()
     install_service()
 
