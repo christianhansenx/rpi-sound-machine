@@ -23,21 +23,21 @@ The Raspberry Pi Sound Machine makes it possible to control sound playing on Ras
 
 #### Playing Sounds
 
-*   **Play a sound**: Click on the name of a sound file in either the "Sound Files" or "Favorites" list to start playing it. The sound will loop continuously.
-*   **Play multiple sounds**: You can play multiple sounds at the same time by clicking on additional sound files.
+* **Play a sound**: Click on the name of a sound file in either the "Sound Files" or "Favorites" list to start playing it. The sound will loop continuously.
+* **Play multiple sounds**: You can play multiple sounds at the same time by clicking on additional sound files.
 
 #### Favorites
 
-*   **Add to favorites**: To add a sound to your favorites, click 🤍 next to the file name.
-*   **Remove from favorites**: To remove a sound from your favorites, click ❤️ next to the file name in the "Favorites" list.
+* **Add to favorites**: To add a sound to your favorites, click 🤍 next to the file name.
+* **Remove from favorites**: To remove a sound from your favorites, click ❤️ next to the file name in the "Favorites" list.
 
 #### Controls
 
 At the top of the page, you'll find control buttons:
 
-*   **Pause/Resume (⏸️/▶️)**: Click to pause or resume all currently playing sounds.
-*   **Stop (⏹️)**: Click to stop all sounds.
-*   **Delete (🗑️)**: To delete files, check the boxes next to the file names you want to delete, then click this button.
+* **Pause/Resume (⏸️/▶️)**: Click to pause or resume all currently playing sounds.
+* **Stop (⏹️)**: Click to stop all sounds.
+* **Delete (🗑️)**: To delete files, check the boxes next to the file names you want to delete, then click this button.
 
 #### Timer
 
@@ -45,9 +45,9 @@ A timer at the top of the page (below control buttons) shows how long the curren
 
 #### Uploading Sounds
 
-1.  Click the "Choose Files" button under.
-2.  Select one or more sound files from your computer.
-3.  Click the "Upload" button to upload them to the Raspberry Pi.
+1. Click the "Choose Files" button under.
+2. Select one or more sound files from your computer.
+3. Click the "Upload" button to upload them to the Raspberry Pi.
 
 I found some good sounds here: [Pixabay Free Sounds](https://pixabay.com/sound-effects/search/)
 

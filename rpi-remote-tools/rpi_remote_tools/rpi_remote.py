@@ -154,7 +154,14 @@ def rpi_tmux(
     tmux_command = None
     if restart_application:
         remote_dir = f'/home/{ssh_client.username}/{config.local_project_directory}'
-        ssh_client.client.exec_command(f'{remote_dir}/start-mux.sh')
+        _stdin, stdout, stderr = ssh_client.client.exec_command(f'{remote_dir}/start-tmux.sh')
+        exit_code = stdout.channel.recv_exit_status()
+        if exit_code != 0:
+            error = (
+                f'Could not open tmux session "{config.tmux_session_name}" on {ssh_client.connection}:'
+                f'\n{stderr.read().decode().strip()}',
+            )
+            raise StartRpiTmuxError(error)
 
     else:
         _stdin, stdout, stderr = ssh_client.client.exec_command(f'tmux has-session -t {config.tmux_session_name}')
@@ -372,7 +379,7 @@ def main() -> None:
         elif args.rpi_copy_code:
             rpi_kill_app(ssh_client, rpi_application_process_name, msg_no_kill=False)
             rpi_upload_app_files(ssh_client, config)
-            rpi_tmux(ssh_client, rpi_application_process_name, config, restart_application=True)
+            # rpi_tmux(ssh_client, rpi_application_process_name, config, restart_application=True)
 
 
 if __name__ == '__main__':
