@@ -26,13 +26,13 @@ def run_command(command: str, *, check: bool = True) -> None:
         subprocess.CalledProcessError: If the command fails and check is True.
 
     """
-    print(f'Running command: {command}')
     try:
         # Ruff S602 = `subprocess` call with `shell=True` identified, security issue
         result = subprocess.run(command, shell=True, check=check, capture_output=True, text=True)  # noqa: S602
 
-        print(result.stdout)
         if result.stderr:
+            print(f'Running command: {command}')
+            print(result.stdout)
             print(result.stderr)
     except subprocess.CalledProcessError as e:
         print(f'\nError running command: {command}')
@@ -62,8 +62,6 @@ def install_tmux() -> None:
         run_command('sudo apt-get update')
         run_command('sudo apt-get install -y tmux')
         print('tmux installed successfully.')
-    else:
-        print('tmux is already installed.')
 
 
 def files_are_different(file1: Path, file2: Path) -> bool:
@@ -103,11 +101,11 @@ def install_service() -> None:
         run_command(f'sudo chmod +x {REMOTE_START_SCRIPT}')
         print('Start script updated.')
 
-    print('Reloading systemd daemon and restarting service.')
-    run_command('sudo systemctl daemon-reload')
-    run_command(f'sudo systemctl enable {SERVICE_NAME}')
-    run_command(f'sudo systemctl start {SERVICE_NAME}')
-    print('Service installation/update complete.')
+    # print('Reloading systemd daemon and restarting service.')
+    # run_command('sudo systemctl daemon-reload')
+    # run_command(f'sudo systemctl enable {SERVICE_NAME}')
+    # run_command(f'sudo systemctl start {SERVICE_NAME}')
+    # print('Service installation/update complete.')
 
 
 def is_uv_installed() -> bool:
@@ -138,4 +136,4 @@ def rpi_installation() -> None:
     """Install RPI."""
     install_tmux()
     # install_uv()
-    # install_service()
+    install_service()
