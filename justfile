@@ -4,8 +4,7 @@ list-recipes:
 
 RPI_REMOTE_TOOLS_CONFIGURATIONS := '{
   "local_project_directory": "rpi_sound_machine",
-  "application_file": "sound_machine.py",
-  "tmux_session_name": "sound"
+  "application_file": "sound_machine.py"
 }'
 RPI_REMOTE_TOOLS_PATH := "rpi-remote-tools"
 # Raspberry Pi Remote Tools recipes.

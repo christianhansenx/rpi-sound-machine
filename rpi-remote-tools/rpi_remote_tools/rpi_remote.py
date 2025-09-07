@@ -299,6 +299,22 @@ def _get_configurations(configurations_content: str) -> RpiRemoteToolsConfig:
     except json.JSONDecodeError as exception:
         error_msg = f'Error decoding configurations as JSON:\n{configurations_content}\n'
         raise ValueError(error_msg) from exception
+
+    script_dir = Path(__file__).parent
+    tmux_file = (script_dir / '..' / '..' / config_data['local_project_directory']).resolve() / 'start-tmux.sh'
+    with Path.open(tmux_file, 'r', encoding='utf-8') as file:
+        file_content = file.read()
+    session_name = None
+    session_variable = 'TMUX_SESSION_NAME='
+    for line in file_content.splitlines():
+        if line.startswith(session_variable):
+            session_name = line.split('=', 1)[1].strip().strip('"')
+            break
+    if not session_name:
+        error_msg = f'Could not find {session_variable} in {tmux_file}'
+        raise ValueError(error_msg)
+    config_data['tmux_session_name'] = session_name
+
     return RpiRemoteToolsConfig(**config_data)
 
 
