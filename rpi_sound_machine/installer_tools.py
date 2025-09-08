@@ -48,12 +48,7 @@ class InstallerTools:
         """
         try:
             # Ruff S602 = `subprocess` call with `shell=True` identified, security issue
-            result = subprocess.run(command, shell=True, check=check, capture_output=True, text=True)  # noqa: S602
-
-            if result.stderr:
-                print(f'Running command: {command}')
-                print(result.stdout)
-                print(result.stderr)
+            subprocess.run(command, shell=True, check=check, capture_output=True, text=True)  # noqa: S602
         except subprocess.CalledProcessError as e:
             if not suppress_error_prints:
                 print(f'\nError running command: {command}')

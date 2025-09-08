@@ -4,7 +4,11 @@ import sys
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from installer_tools import InstallerTools
+from installer_tools import (
+    SERVICE_NAME,
+    SYSTEM_SERVICE_FILE,
+    InstallerTools,
+)
 
 
 class UninstallError(Exception):
@@ -23,7 +27,7 @@ class Uninstaller(InstallerTools):
             print('tmux not found. No uninstalling...')
             return
         print('Uninstalling tmux')
-        self.run_command('tmux kill-server')
+        self.run_command('tmux kill-server', check=False)
         self.run_command('sudo apt-get remove -y tmux')
         if self.is_tmux_installed():
             error = 'Could not uninstall tmux.'
@@ -38,6 +42,29 @@ class Uninstaller(InstallerTools):
         if self.is_uv_installed():
             error = 'Could not uninstall uv.'
             raise UninstallError(error)
+
+    def uninstall_snap(self) -> None:
+        if not self.is_snap_installed():
+            print('snap not found. No uninstalling...')
+            return
+        print('Uninstalling snap')
+        self.run_command('sudo apt-get purge snapd -y')
+        if self.is_snap_installed():
+            error = 'Could not uninstall snap.'
+            raise UninstallError(error)
+
+    def uninstall_service(self) -> None:
+        """Uninstall the systemd service."""
+        if not SYSTEM_SERVICE_FILE.exists():
+            print('Service not installed. No uninstalling...')
+            return
+
+        print('Removing service')
+        self.run_command(f'sudo systemctl stop {SERVICE_NAME}', check=False)
+        self.run_command(f'sudo systemctl disable {SERVICE_NAME}')
+        self.run_command(f'sudo rm {SYSTEM_SERVICE_FILE}')
+
+        self.run_command('sudo systemctl daemon-reload')
 
     @staticmethod
     def uninstall(installable_items: dict[str, callable], uninstalls: set) -> None:
@@ -68,8 +95,10 @@ def main() -> None:
     args = parser.parse_args()
     uninstaller = Uninstaller()
     installable_items = {
+        'service': uninstaller.uninstall_service,
         'tmux': uninstaller.uninstall_tmux,
         'uv': uninstaller.uninstall_uv,
+        'snap': uninstaller.uninstall_snap,
     }
     installable = set(installable_items.keys())
 
@@ -88,6 +117,7 @@ def main() -> None:
         if answer != 'y':
             print('Uninstallation cancelled.')
             return
+    print()
     uninstaller.uninstall(installable_items, uninstalls)
     print('Success!')
 

@@ -2,15 +2,19 @@
 
 ## Improvements
 
+- remote install and reboot
+- graceful stop of rpi app via rpi_remote.py (stop service if it is running)
+- continue current play after reboot
 - locate files in .config on the RPI
 - python code to ask local time location and update rpi with it
 - provide as configs to RPI remote tools:<br>
 UPLOAD_EXCLUDES_FOLDERS = ['.venv', '.git', '.ruff_cache', '__pycache__']<br>
 UPLOAD_EXCLUDES_FILES = []  # Add specific file names here if needed
 - connect to bt speaker
-- graceful stop of rpi app via rpi_remote.py
 - mypy or Pyright
 - ruff HTML, CSS, JS
+- rotate .tmux-log
+- ram disk for .tmux-log
 - progress bar for uploading files
 - scrollable file lists
 - light blue background

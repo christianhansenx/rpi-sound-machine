@@ -1,14 +1,20 @@
 """Raspberry Pi Sound Machine - A web-based sound machine using Flask and Pygame."""
 import json
+import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from threading import Timer
+from zoneinfo import ZoneInfo
 
 import pygame
 from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, url_for
-from rpi_installation import rpi_installation as install
 from werkzeug.utils import secure_filename
 from werkzeug.wrappers import Response as BaseResponse
+
+print(f'UTC time: {datetime.now(tz=ZoneInfo("UTC")).strftime("%Y-%m-%d %H:%M:%S")}')
+print(f'Python version: {sys.version_info.major}.{sys.version_info.minor}')
+print()
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -272,8 +278,6 @@ def favicon() -> BaseResponse:
 
 def main() -> None:
     """Prepare and start Flask application."""
-    install()
-
     SOUND_DIR.mkdir(exist_ok=True)
     if not FAVORITES_FILE.is_file():
         FAVORITES_FILE.touch()
