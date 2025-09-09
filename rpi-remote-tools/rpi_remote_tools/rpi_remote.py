@@ -18,7 +18,7 @@ UPLOAD_EXCLUDES_FILES = []  # Add specific file names here if needed
 RPI_HOST_CONFIG_FILE = Path('rpi_host_config.yaml')
 
 # Linting: S108 Probable insecure usage of temporary file or directory: "/tmp/"
-TMUX_LOG_PATH = '/tmp/{file_name}.tmux-log'  # noqa: S108
+TMUX_LOG_PATH = '/tmp/{file_name}-tmux.log'  # noqa: S108
 
 
 class StartRpiTmuxError(Exception):
@@ -245,6 +245,7 @@ def _tmux_terminal_streaming(
 
     # tmux streaming
     remote_tmux_log = sftp_client.open(tmux_log_file_path, 'r', bufsize=4096)
+    mux_log_creation_time = remote_tmux_log.stat().st_mtime
     print(f'{tmux_session_msg}')
     check_app_reties = 10
     while True:
@@ -264,6 +265,9 @@ def _tmux_terminal_streaming(
                 sys.stdout.flush()
             else:
                 time.sleep(0.5)
+                if sftp_client.stat(tmux_log_file_path).st_mtime != mux_log_creation_time:
+                    error = 'Log file was deleted and recreated.'
+                    raise RuntimeError(error)
     finally:
         remote_tmux_log.close()
         sftp_client.close()
@@ -308,7 +312,7 @@ def _get_configurations(configurations_content: str) -> RpiRemoteToolsConfig:
         raise ValueError(error_msg) from exception
 
     script_dir = Path(__file__).parent
-    tmux_file = (script_dir / '..' / '..' / config_data['local_project_directory']).resolve() / 'start-tmux.sh'
+    tmux_file = (script_dir / '..' / '..' / config_data['local_project_directory']).resolve() / 'run.sh'
     with Path.open(tmux_file, 'r', encoding='utf-8') as file:
         file_content = file.read()
     session_name = None
@@ -379,7 +383,7 @@ def main() -> None:
         elif args.rpi_copy_code:
             rpi_kill_app(ssh_client, rpi_application_process_name, msg_no_kill=False)
             rpi_upload_app_files(ssh_client, config)
-            rpi_tmux(ssh_client, rpi_application_process_name, config, restart_application=True)
+            #rpi_tmux(ssh_client, rpi_application_process_name, config, restart_application=True)
 
 
 if __name__ == '__main__':

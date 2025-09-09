@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Raspberry Pi installation script."""
 import argparse
 import sys
@@ -33,11 +34,13 @@ class Installer(InstallerTools):
         Traverses all directories from the current location and changes the
         permissions of all .sh files to be.
         """
-        start_path = Path.cwd()
-        print(f'Apply execute permission to sh files in: {start_path}')
-        for filepath in start_path.rglob('*.sh'):
+        app_root_path = Path(__file__).resolve().parent
+        print(f'Apply execute permission to sh files in: {app_root_path}')
+        for filepath in app_root_path.rglob('*.sh'):
             if filepath.is_file():
                 filepath.chmod(0o755)
+        (app_root_path / 'install.py').chmod(0o755)
+        (app_root_path / 'uninstall.py').chmod(0o755)
 
     def install_tmux(self) -> None:
         if self.is_tmux_installed():
@@ -134,9 +137,11 @@ def main() -> None:
     args = parser.parse_args()
     installer = Installer(skip_apt_get_update=args.skip_apt_get_update)
     installable_items = {
+        'set_exec': installer.make_files_executablex,
         'tmux': installer.install_tmux,
         'snap': installer.install_snap,
         'uv': installer.install_uv,
+        'service': installer.install_service,
     }
     installable = set(installable_items.keys())
 
@@ -150,9 +155,7 @@ def main() -> None:
             print('Installation cancelled.')
             return
     print()
-    installer.make_files_executable()
     installer.install(installable_items, installs)
-    installer.install_service()
     print('Success!')
 
 

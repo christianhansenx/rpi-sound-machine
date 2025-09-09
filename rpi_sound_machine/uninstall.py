@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Raspberry Pi uninstallation script."""
 import argparse
 import sys

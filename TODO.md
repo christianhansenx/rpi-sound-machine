@@ -2,10 +2,12 @@
 
 ## Improvements
 
-- remote install and reboot
+
+- refactor and document install and uninstall items (also implement --exclude)
+- remote install and reboot (just rpi install, boot, off)
 - graceful stop of rpi app via rpi_remote.py (stop service if it is running)
 - continue current play after reboot
-- locate files in .config on the RPI
+- locate files in ~/.config on the RPI
 - python code to ask local time location and update rpi with it
 - provide as configs to RPI remote tools:<br>
 UPLOAD_EXCLUDES_FOLDERS = ['.venv', '.git', '.ruff_cache', '__pycache__']<br>

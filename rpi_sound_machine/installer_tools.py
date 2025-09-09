@@ -5,7 +5,7 @@ from pathlib import Path
 
 # Define paths
 SERVICE_NAME = 'rpi-sound-machine'
-START_SCRIPT_NAME = f'start-{SERVICE_NAME}.sh'
+START_SCRIPT_NAME = f'{SERVICE_NAME}-start.sh'
 
 SERVICE_FILE_NAME = f'{SERVICE_NAME}.service'
 LOCAL_SERVICE_DIRECTORY = Path(__file__).parent / 'system-service'
