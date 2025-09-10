@@ -2,8 +2,8 @@
 
 ## Improvements
 
-
-- refactor and document install and uninstall items (also implement --exclude)
+- create issues in github
+- refactor and document install and uninstall items (also implement --exclude (add apt_get_update as item))
 - remote install and reboot (just rpi install, boot, off)
 - graceful stop of rpi app via rpi_remote.py (stop service if it is running)
 - continue current play after reboot

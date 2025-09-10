@@ -34,16 +34,14 @@ class SshClient:
         """Provide ssh connection name (username@hostname)."""
         return self._connection
 
-    def upload_recursive(self, root_directory: str, exclude_patterns: list[str] | None) -> None:
+    def upload_recursive(self, local_dir: Path, remote_folder: str, exclude_patterns: list[str] | None) -> None:
         """Upload files to remote device like rsync."""
         exclude = exclude_patterns or []
-        script_dir = Path(__file__).parent
-        local_dir = (script_dir / '..' / '..' / root_directory).resolve()
 
         # Use PurePosixPath for remote paths
-        remote_dir = PurePosixPath(f'/home/{self.username}') / root_directory
+        remote_dir = PurePosixPath(f'{remote_folder}')
 
-        print(f'Syncing {root_directory} to {self.connection}:{remote_dir}')
+        print(f'Syncing {local_dir} to {self.connection}:{remote_dir}')
         self._sftp = self.client.open_sftp()
 
         def _upload_dir(local_path: Path, remote_path: PurePosixPath) -> None:
