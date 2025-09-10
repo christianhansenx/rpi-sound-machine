@@ -160,12 +160,12 @@ def _rpi_check_process_id(ssh_client: SshClient, proc_id: str) -> bool:
 
 
 def _rpi_tmux_get_log_file_path(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> str | None:
-    log_files_search_pattern = config.tmux.log_file_path_pattern.format(timestamp='*')
+    log_files_search_pattern = config.rpi_settings.tmux.log_file_path_pattern.format(timestamp='*')
     _stdin, stdout, stderr = ssh_client.client.exec_command(f'ls {log_files_search_pattern}')
     status = stdout.channel.recv_exit_status()
     if status:
-        no_file_founds = 2
-        if status == no_file_founds:
+        no_file_found = 2
+        if status == no_file_found:
             return None
         error = f'Searching files on RPI: {log_files_search_pattern}, stderr={stderr.read().decode('utf-8').strip()}'
         raise StartRpiTmuxError(error)
@@ -191,7 +191,7 @@ def rpi_tmux(
     """
     tmux_log_file_path = _rpi_tmux_get_log_file_path(ssh_client, config)
     if not tmux_log_file_path:
-        error = 'No log file found on rpi'
+        print('No log file found on rpi')
     else:
         print(f'log file on rpi: {tmux_log_file_path}')
     exit()
@@ -199,8 +199,7 @@ def rpi_tmux(
     # Restart tmux session if required
     tmux_command = None
     if restart_application:
-        remote_dir = f'/home/{ssh_client.username}/{config.project_directory}'
-        _stdin, stdout, stderr = ssh_client.client.exec_command(f'{remote_dir}/start-tmux.sh')
+        _stdin, stdout, stderr = ssh_client.client.exec_command(f'{config.remote_project_folder}/start-tmux.sh')
         exit_code = stdout.channel.recv_exit_status()
         if exit_code != 0:
             error = (
@@ -259,8 +258,7 @@ def _tmux_terminal(
 
     # Start application (if required)
     if restart_application:
-        remote_dir = f'/home/{ssh_client.username}/{config.project_directory}'
-        ssh_client.client.exec_command(f'{remote_dir}/start.sh')
+        ssh_client.client.exec_command(f'{config.remote_project_folder}/start.sh')
         print(f'Application {config.application_file} on {ssh_client.connection} has been started')
 
     _tmux_terminal_streaming(ssh_client, process_name, tmux_log_file_path, config, sftp_client)

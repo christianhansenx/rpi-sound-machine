@@ -66,6 +66,18 @@ class Installer(InstallerTools):
             raise InstallError(error)
         self.set_reboot_required()
 
+    def install_yq(self) -> None:
+        if self.is_yq_installed():
+            print('yq already installed. No installing...')
+            return
+        self.apt_get_update()
+        print('Installing yq')
+        #self.run_command('sudo snap install yq')
+        self.run_command('sudo apt-get install yq -y')
+        if not self.is_yq_installed():
+            error = 'Could not install yq.'
+            raise InstallError(error)
+
     def install_uv(self) -> None:
         if self.is_uv_installed():
             print('uv already installed. No installing...')
@@ -137,9 +149,10 @@ def main() -> None:
     args = parser.parse_args()
     installer = Installer(skip_apt_get_update=args.skip_apt_get_update)
     installable_items = {
-        'set_exec': installer.make_files_executablex,
+        'set_exec': installer.make_files_executable,
         'tmux': installer.install_tmux,
         'snap': installer.install_snap,
+        'yq': installer.install_yq,
         'uv': installer.install_uv,
         'service': installer.install_service,
     }

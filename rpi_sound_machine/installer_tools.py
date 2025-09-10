@@ -81,6 +81,19 @@ class InstallerTools:
             return True
         return not filecmp.cmp(file1, file2, shallow=False)
 
+    def is_yq_installed(self) -> bool:
+        """Check if yq is installed.
+
+        Returns:
+            True if yq is installed, False otherwise.
+
+        """
+        try:
+            self.run_command('which yq', check=True, suppress_error_prints=True)
+        except subprocess.CalledProcessError:
+            return False
+        return True
+
     def is_uv_installed(self) -> bool:
         """Check if uv is installed.
 

@@ -34,6 +34,16 @@ class Uninstaller(InstallerTools):
             error = 'Could not uninstall tmux.'
             raise UninstallError(error)
 
+    def uninstall_yq(self) -> None:
+        if not self.is_yq_installed():
+            print('yq not found. No uninstalling...')
+            return
+        print('Uninstalling yq')
+        self.run_command('sudo snap remove yq')
+        if self.is_yq_installed():
+            error = 'Could not uninstall yq.'
+            raise UninstallError(error)
+
     def uninstall_uv(self) -> None:
         if not self.is_uv_installed():
             print('uv not found. No uninstalling...')
@@ -98,6 +108,7 @@ def main() -> None:
     installable_items = {
         'service': uninstaller.uninstall_service,
         'tmux': uninstaller.uninstall_tmux,
+        'yq': uninstaller.uninstall_yq,
         'uv': uninstaller.uninstall_uv,
         'snap': uninstaller.uninstall_snap,
     }
