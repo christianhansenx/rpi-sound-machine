@@ -34,27 +34,37 @@ class InstallerTools:
             self._skip_apt_get_update = True
 
     @staticmethod
-    def run_command(command: str, *, check: bool = True, suppress_error_prints: bool = False) -> None:
-        """Run a shell command.
+    def run_command(
+            command: str,
+            *,
+            check: bool = True,
+            raise_std_error: bool = True,
+    ) -> subprocess.CompletedProcess:
+        r"""Run a shell command.
 
         Args:
             command: The command to run.
             check: Whether to raise an error on a non-zero exit code.
-            suppress_error_prints: Whether to suppress error prints.
+            raise_std_error: Whether to raise an error if there is output on stderr.
+
+        Returns:
+            The CompletedProcess instance.
+            Example: CompletedProcess(args='sudo snap remove yq', returncode=0, stdout='', stderr='snap "yq" is not installed\n')
 
         Raises:
-            subprocess.CalledProcessError: If the command fails and check is True.
+            subprocess.CalledProcessError: If the command fails and check is True, or .
 
         """
-        try:
-            # Ruff S602 = `subprocess` call with `shell=True` identified, security issue
-            subprocess.run(command, shell=True, check=check, capture_output=True, text=True)  # noqa: S602
-        except subprocess.CalledProcessError as e:
-            if not suppress_error_prints:
-                print(f'\nError running command: {command}')
-                print(f'Stdout: {e.stdout}')
-                print(f'Stderr: {e.stderr}')
-            raise
+        # Ruff S602 = `subprocess` call with `shell=True` identified, security issue
+        result = subprocess.run(command, shell=True, check=check, capture_output=True, text=True)  # noqa: S602
+        if raise_std_error and result.stderr:
+            raise subprocess.CalledProcessError(
+                result.returncode,
+                result.args,
+                output=result.stdout,
+                stderr=result.stderr,
+            )
+        return result
 
     def is_tmux_installed(self) -> bool:
         """Check if tmux is installed.
@@ -64,7 +74,7 @@ class InstallerTools:
 
         """
         try:
-            self.run_command('which tmux', check=True, suppress_error_prints=True)
+            self.run_command('which tmux', check=True)
         except subprocess.CalledProcessError:
             return False
         return True
@@ -89,7 +99,7 @@ class InstallerTools:
 
         """
         try:
-            self.run_command('which yq', check=True, suppress_error_prints=True)
+            self.run_command('which yq', check=True)
         except subprocess.CalledProcessError:
             return False
         return True
@@ -102,7 +112,7 @@ class InstallerTools:
 
         """
         try:
-            self.run_command('which uv', check=True, suppress_error_prints=True)
+            self.run_command('which uv', check=True)
         except subprocess.CalledProcessError:
             return False
         return True
@@ -115,14 +125,15 @@ class InstallerTools:
 
         """
         try:
-            self.run_command('which snap', check=True, suppress_error_prints=True)
+            self.run_command('which snap', check=True)
         except subprocess.CalledProcessError:
             return False
         return True
 
     @staticmethod
-    def check_install_candidates(candidates: set, installable: set) -> None:
-        unknown_items = candidates - installable
+    def check_install_candidates(installable: list, candidates: list) -> list:
+        unknown_items = set(candidates) - set(installable)
         if unknown_items:
             error = f'The following items are not recognized: {" ".join(unknown_items)}'
             raise ValueError(error)
+        return [item for item in installable if item in candidates]

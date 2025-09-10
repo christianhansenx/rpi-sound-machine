@@ -72,7 +72,6 @@ class Installer(InstallerTools):
             return
         self.apt_get_update()
         print('Installing yq')
-        #self.run_command('sudo snap install yq')
         self.run_command('sudo apt-get install yq -y')
         if not self.is_yq_installed():
             error = 'Could not install yq.'
@@ -116,7 +115,7 @@ class Installer(InstallerTools):
         self.set_reboot_required()
 
     @staticmethod
-    def install(installable_items: dict[str, callable], installs: set) -> None:
+    def install(installable_items: dict[str, callable], installs: list) -> None:
         for item, func in installable_items.items():
             if item in installs:
                 func()
@@ -156,19 +155,19 @@ def main() -> None:
         'uv': installer.install_uv,
         'service': installer.install_service,
     }
-    installable = set(installable_items.keys())
+    installable = list(installable_items.keys())
 
-    installs = set(args.install) if args.install else set(installable)
-    installer.check_install_candidates(installs, installable)
+    installs = list(args.install) if args.install else list(installable)
+    installs_ordered = installer.check_install_candidates(installable, installs)
     if not args.no_confirms:
         print()
-        print(f'You are about to install{"" if args.install else " all"}: {" ".join(installs)}')
+        print(f'You are about to install{"" if args.install else " all"}: {" ".join(installs_ordered)}')
         answer = input('Are you sure you want to install? (y/N): ').strip().lower()
         if answer != 'y':
             print('Installation cancelled.')
             return
     print()
-    installer.install(installable_items, installs)
+    installer.install(installable_items, installs_ordered)
     print('Success!')
 
 

@@ -39,7 +39,7 @@ class Uninstaller(InstallerTools):
             print('yq not found. No uninstalling...')
             return
         print('Uninstalling yq')
-        self.run_command('sudo snap remove yq')
+        self.run_command('sudo apt-get remove yq -y')
         if self.is_yq_installed():
             error = 'Could not uninstall yq.'
             raise UninstallError(error)
@@ -78,7 +78,7 @@ class Uninstaller(InstallerTools):
         self.run_command('sudo systemctl daemon-reload')
 
     @staticmethod
-    def uninstall(installable_items: dict[str, callable], uninstalls: set) -> None:
+    def uninstall(installable_items: dict[str, callable], uninstalls: list) -> None:
         for item, func in installable_items.items():
             if item in uninstalls:
                 func()
@@ -112,7 +112,7 @@ def main() -> None:
         'uv': uninstaller.uninstall_uv,
         'snap': uninstaller.uninstall_snap,
     }
-    installable = set(installable_items.keys())
+    installable = list(installable_items.keys())
 
     if args.uninstall is None:
         print('No uninstallation targets specified. Use -u or --uninstall option to specify items to uninstall.')
@@ -121,16 +121,16 @@ def main() -> None:
         return
 
     uninstalls = set(args.uninstall) if args.uninstall else set(installable)
-    uninstaller.check_install_candidates(uninstalls, installable)
+    uninstalls_ordered = uninstaller.check_install_candidates(installable, uninstalls)
     if not args.no_confirms and args.uninstall is not None:
         print()
-        print(f'You are about to uninstall{"" if args.uninstall else " all"}: {" ".join(uninstalls)}')
+        print(f'You are about to uninstall{"" if args.uninstall else " all"}: {" ".join(uninstalls_ordered)}')
         answer = input('Are you sure you want to uninstall? (y/N): ').strip().lower()
         if answer != 'y':
             print('Uninstallation cancelled.')
             return
     print()
-    uninstaller.uninstall(installable_items, uninstalls)
+    uninstaller.uninstall(installable_items, uninstalls_ordered)
     print('Success!')
 
 
