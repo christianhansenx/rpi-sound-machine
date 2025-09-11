@@ -47,13 +47,13 @@ class _RpiTmuxSettings(BaseModel):
 class _RpiSettings(BaseModel):
     """Pydantic model for RPI settings."""
 
+    application_file: str = Field(..., description='The main application file to run on the RPI.')
     tmux: _RpiTmuxSettings = Field(..., description='The tmux settings.')
 
 
 class RpiRemoteToolsConfig(BaseModel):
     """Pydantic model for rpi-remote-tools configuration."""
 
-    application_file: str = Field(..., description='The main application file to run on the RPI.')
     project_directory: str = Field(..., description='The local project directory to sync to the RPI.')
     remote_project_folder: str = Field(..., description='The project path on the RPI.')
 
@@ -259,7 +259,7 @@ def _tmux_terminal(
     # Start application (if required)
     if restart_application:
         ssh_client.client.exec_command(f'{config.remote_project_folder}/start.sh')
-        print(f'Application {config.application_file} on {ssh_client.connection} has been started')
+        print(f'Application {config.rpi_settings.application_file} on {ssh_client.connection} has been started')
 
     _tmux_terminal_streaming(ssh_client, process_name, tmux_log_file_path, config, sftp_client)
 
@@ -375,7 +375,7 @@ def main() -> None:
 
     with SshClientHandler(RPI_HOST_CONFIG_FILE) as ssh_client:
         config = _get_configurations(args.configurations, ssh_client.username)
-        rpi_application_process_name = f'python3 {config.application_file}'
+        rpi_application_process_name = f'python3 {config.rpi_settings.application_file}'
 
         if args.rpi_check_app:
             rpi_check_running_app(ssh_client, rpi_application_process_name)

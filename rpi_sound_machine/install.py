@@ -6,14 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from installer_tools import (
-    LOCAL_SERVICE_FILE,
-    LOCAL_START_SCRIPT,
-    SERVICE_NAME,
-    SYSTEM_SERVICE_FILE,
-    SYSTEM_START_SCRIPT,
-    InstallerTools,
-)
+from installer_tools import InstallerTools
 
 
 class InstallError(Exception):
@@ -90,29 +83,8 @@ class Installer(InstallerTools):
         self.set_reboot_required()
 
     def install_service(self) -> None:
-        """Install the systemd service."""
-        service_changed = self.files_are_different(LOCAL_SERVICE_FILE, SYSTEM_SERVICE_FILE)
-        script_changed = self.files_are_different(LOCAL_START_SCRIPT, SYSTEM_START_SCRIPT)
-
-        if not service_changed and not script_changed:
-            print('Service setup is already up to date. No changes needed.')
-            return
-
-        print('Service setup changes detected. Updating service setup.')
-
-        # Stop the service before making changes
-        self.run_command(f'sudo systemctl stop {SERVICE_NAME}', check=False)
-
-        if service_changed:
-            self.run_command(f'sudo cp {LOCAL_SERVICE_FILE} {SYSTEM_SERVICE_FILE}')
-
-        if script_changed:
-            self.run_command(f'sudo cp {LOCAL_START_SCRIPT} {SYSTEM_START_SCRIPT}')
-
-        self.run_command('sudo systemctl daemon-reload')
-        self.run_command(f'sudo systemctl enable {SERVICE_NAME}')
-        self.run_command(f'sudo systemctl start {SERVICE_NAME}')
-        self.set_reboot_required()
+        """Install and start the systemd service."""
+        self.restart_service()
 
     @staticmethod
     def install(installable_items: dict[str, callable], installs: list) -> None:
@@ -168,6 +140,7 @@ def main() -> None:
             return
     print()
     installer.install(installable_items, installs_ordered)
+    print()
     print('Success!')
 
 
