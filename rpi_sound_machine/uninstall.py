@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Raspberry Pi uninstallation script."""
 import argparse
+import subprocess
 import sys
 from datetime import datetime
+from contextlib import suppress
 from zoneinfo import ZoneInfo
 
 from installer_tools import (
@@ -66,15 +68,10 @@ class Uninstaller(InstallerTools):
 
     def uninstall_service(self) -> None:
         """Uninstall the systemd service."""
-        if not SYSTEM_SERVICE_FILE.exists():
-            print('Service not installed. No uninstalling...')
-            return
-
-        print('Removing service')
-        self.run_command(f'sudo systemctl stop {SERVICE_NAME}', check=False)
-        self.run_command(f'sudo systemctl disable {SERVICE_NAME}')
-        self.run_command(f'sudo rm {SYSTEM_SERVICE_FILE}')
-
+        print(f'Removing service: {SERVICE_NAME}.service')
+        self.stop_service()
+        with suppress(subprocess.CalledProcessError):
+            self.run_command(f'sudo rm {SYSTEM_SERVICE_FILE}')
         self.run_command('sudo systemctl daemon-reload')
 
     @staticmethod
