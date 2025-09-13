@@ -1,4 +1,5 @@
 tmux:
   session_name: sound
   log_file_path_pattern: /tmp/{session_name}-tmux_{timestamp}.log
+application_derectoryrpi_sound_machine
 application_file: sound_machine.py

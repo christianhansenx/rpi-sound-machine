@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Raspberry Pi uninstallation script."""
 import argparse
-import subprocess
+import subprocess  # noqa: S404 subprocess` module is possibly insecure
 import sys
-from datetime import datetime
 from contextlib import suppress
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from installer_tools import (

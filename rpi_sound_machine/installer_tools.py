@@ -1,7 +1,10 @@
 """Raspberry Pi installation tools."""
+import argparse
 import filecmp
 import subprocess  # noqa: S404 `subprocess` module is possibly insecure
+import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 # Define paths
@@ -192,3 +195,30 @@ class InstallerTools:
             error = f'The following items are not recognized: {" ".join(unknown_items)}'
             raise ValueError(error)
         return [item for item in installable if item in candidates]
+
+
+def main() -> None:
+    """Call functions depending on script arguments."""
+    print(
+        f'UTC time: {datetime.now(tz=ZoneInfo("UTC")).strftime("%Y-%m-%d %H:%M:%S")},'
+        f'Script: {__name__}'
+        f', Python version: {sys.version_info.major}.{sys.version_info.minor}',
+    )
+
+    parser = argparse.ArgumentParser(description='Raspberry Pi Uninstaller.')
+    parser.add_argument(
+        '--restart-service',
+        action='store_true',
+        help='Restarting application service.',
+    )
+
+    args = parser.parse_args()
+    if not len(sys.argv):
+        sys.ext()
+    installer_tools = InstallerTools(skip_apt_get_update=args.skip_apt_get_update)
+    if args.restart_service:
+        installer_tools.restart_service()
+
+
+if __name__ == '__main__':
+    main()

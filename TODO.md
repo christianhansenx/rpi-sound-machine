@@ -3,10 +3,11 @@
 ## Improvements
 
 - create issues in github
+- continue current play after reboot
+- setting up github to run test at pull request
 - refactor and document install and uninstall items (also implement --exclude (add apt_get_update as item))
 - remote install and reboot (just rpi install, boot, off)
 - graceful stop of rpi app via rpi_remote.py (stop service if it is running)
-- continue current play after reboot
 - locate files in ~/.config on the RPI
 - python code to ask local time location and update rpi with it
 - provide as configs to RPI remote tools:<br>

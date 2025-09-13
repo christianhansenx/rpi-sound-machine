@@ -15,17 +15,18 @@ TMUX_ATTACH ?= true
 no_arguments:
 	@echo "Provide arguments: start | log | attach"
 
-# The 'clean' target kills the tmux session and removes old logs.
-# The '-' prefix on the commands prevents `make` from exiting if they fail.
-clean:
-	@echo "Cleaning up old tmux sessions and logs..."
+stop:
+	@echo "Stopping application and tmux session"
 	-@tmux kill-session -t $(TMUX_SESSION_NAME) 2>/dev/null
 	-@rm -f /tmp/$(TMUX_SESSION_NAME)-tmux_*.log 2>/dev/null
 
-# The 'start' target creates and initializes the tmux session.
-# This target is a prerequisite for 'log' and 'attach'.
-start: clean
-	@echo "Starting new tmux session '$(TMUX_SESSION_NAME)'..."
+install: stop
+	@echo "Installing needed applications and restarting application service."
+	@cd ~/rpi_sound_machine
+	@python installer_tools.py -y
+
+run: stop
+	@echo "Starting new tmux session '$(TMUX_SESSION_NAME)'"
 	@tmux new-session -d -s $(TMUX_SESSION_NAME)
 	@tmux send-keys -t $(TMUX_SESSION_NAME):0.0 "uv run --no-group dev $(APPLICATION_FILE)" C-m
 
@@ -50,5 +51,5 @@ log:
 # The 'attach' target attaches to the running tmux session.
 # It depends on 'start' to ensure the session exists.
 attach:
-	@echo "Attaching to tmux session '$(TMUX_SESSION_NAME)'..."
+	@echo "Attaching to tmux session '$(TMUX_SESSION_NAME)'"
 	@tmux attach -t $(TMUX_SESSION_NAME)
