@@ -1,15 +1,15 @@
-MAKEFILE_SETTINGS_FILE := /tmp/makefile_settings.mk
+SHELL = /bin/bash
+MAKEFILE_SETTINGS_FILE := /tmp/makefile_settings.sh
 
-.PHONY: $(MAKEFILE_SETTINGS_FILE) kill-tmux
+# This is a key step: a target that ensures the settings file is created.
+.PHONY: $(MAKEFILE_SETTINGS_FILE)
 $(MAKEFILE_SETTINGS_FILE):
 	python device_tool.py --make-settings-file
-
-include $(MAKEFILE_SETTINGS_FILE)
 
 TMUX_LOG ?= true
 TMUX_ATTACH ?= true
 
-#.PHONY: no_arguments stop install run reboot
+.PHONY: no_arguments stop install run reboot kill-tmux
 
 no_arguments:
 	@echo "Provide arguments: install | run | stop"
@@ -17,12 +17,12 @@ no_arguments:
 stop:
 	@echo "Stopping application. (placeholder - not implemented yet)"
 
-kill-tmux:
-	@echo "Killing tmux session: $(TMUX_SESSION_NAME)"
-	@echo "$(TMUX_LOG_FILE)"
-
-	-@tmux kill-session -t $(TMUX_SESSION_NAME) 2>/dev/null
-	-@rm -f /tmp/$(TMUX_SESSION_NAME)-tmux_*.log 2>/dev/null
+kill-tmux: $(MAKEFILE_SETTINGS_FILE)
+	@source $(MAKEFILE_SETTINGS_FILE); \
+	echo "Killing tmux session: $$TMUX_SESSION_NAME"; \
+	echo "Log file: $$TMUX_LOG_FILE"; \
+	-tmux kill-session -t $$TMUX_SESSION_NAME 2>/dev/null; \
+	-rm -f "$$TMUX_LOG_FILES_TO_REMOVE" 2>/dev/null
 
 install: stop kill-tmux
 	@echo "Installing needed applications and restarting application service."
