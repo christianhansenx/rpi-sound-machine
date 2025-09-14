@@ -1,55 +1,42 @@
-# Define variables to get the session name from the YAML file.
-# The `shell` function executes a command and uses its output.
-SETTINGS_FILE := settings.yaml
-TMUX_SESSION_NAME := $(shell yq -r ".tmux.session_name" $(SETTINGS_FILE))
-APPLICATION_FILE := $(shell yq -r ".application_file" $(SETTINGS_FILE))
+MAKEFILE_SETTINGS_FILE := /tmp/makefile_settings.mk
+$(MAKEFILE_SETTINGS_FILE):
+	@python3 device_tool.py --make-settings-file > $(MAKEFILE_SETTINGS_FILE)
+include $(MAKEFILE_SETTINGS_FILE)
 
-# This will set the variable if it's not provided on the command line.
 TMUX_LOG ?= true
 TMUX_ATTACH ?= true
 
-# Define phony targets to ensure they are always run as commands,
-# not as files.
-.PHONY: no_arguments clean start log attach
+.PHONY: no_arguments stop kill_tmux install run reboot
 
 no_arguments:
-	@echo "Provide arguments: start | log | attach"
+	@echo "Provide arguments: install | run | stop"
+	@echo "$(APPLICATION_SCRIPT)"
+	@echo "$(TMUX_SESSION_NAME)"
 
 stop:
-	@echo "Stopping application and tmux session"
+	@echo "Stopping application. (placeholder - not implemented yet)"
+
+kill_tmux:
+	@echo "Killing tmux session"
 	-@tmux kill-session -t $(TMUX_SESSION_NAME) 2>/dev/null
 	-@rm -f /tmp/$(TMUX_SESSION_NAME)-tmux_*.log 2>/dev/null
 
-install: stop
+install: stop kill_tmux
 	@echo "Installing needed applications and restarting application service."
-	@cd ~/rpi_sound_machine
-	@python installer_tools.py -y
+	@python installer.py -y --restart-service
 
-run: stop
+run: stop kill_tmux
 	@echo "Starting new tmux session '$(TMUX_SESSION_NAME)'"
 	@tmux new-session -d -s $(TMUX_SESSION_NAME)
 	@tmux send-keys -t $(TMUX_SESSION_NAME):0.0 "uv run --no-group dev $(APPLICATION_FILE)" C-m
+	ifeq ($(TMUX_LOG),true)
+		@echo "Configuring tmux logging."
+		@tmux pipe-pane -t $(TMUX_SESSION_NAME):0.0 -o "cat >> \"$(shell yq -r ".tmux.log_file_path_pattern" $(SETTINGS_FILE) | sed "s/{session_name}/$(TMUX_SESSION_NAME)/g" | sed "s/{timestamp}/$(shell date +%Y%m%d_%H%M%S)/g")\""
+	endif
+	ifeq ($(TMUX_ATTACH),true)
+		@echo "Attaching to tmux session: $(TMUX_SESSION_NAME)"
+		@tmux attach -t $(TMUX_SESSION_NAME)
+	endif
 
-# Conditionally configure logging if the TMUX_LOG variable is set to 'true'.
-ifeq ($(TMUX_LOG),true)
-	@echo "Configuring tmux logging..."
-	@tmux pipe-pane -t $(TMUX_SESSION_NAME):0.0 -o "cat >> \"$(shell yq -r ".tmux.log_file_path_pattern" $(SETTINGS_FILE) | sed "s/{session_name}/$(TMUX_SESSION_NAME)/g" | sed "s/{timestamp}/$(shell date +%Y%m%d_%H%M%S)/g")\""
-endif
-
-# Conditionally attach to the session if the TMUX_ATTACH variable is set to 'true'.
-ifeq ($(TMUX_ATTACH),true)
-	@echo "Attaching to tmux session '$(TMUX_SESSION_NAME)'..."
-	@tmux attach -t $(TMUX_SESSION_NAME)
-endif
-
-# The 'log' target configures session logging.
-# It depends on 'start' to ensure the session exists.
-log:
-	@echo "Configuring tmux logging..."
-	@tmux pipe-pane -t $(TMUX_SESSION_NAME):0.0 -o "cat >> \"$(shell yq -r ".tmux.log_file_path_pattern" $(SETTINGS_FILE) | sed "s/{session_name}/$(TMUX_SESSION_NAME)/g" | sed "s/{timestamp}/$(shell date +%Y%m%d_%H%M%S)/g")\""
-
-# The 'attach' target attaches to the running tmux session.
-# It depends on 'start' to ensure the session exists.
-attach:
-	@echo "Attaching to tmux session '$(TMUX_SESSION_NAME)'"
-	@tmux attach -t $(TMUX_SESSION_NAME)
+reboot:
+	@echo "Rebooting device."

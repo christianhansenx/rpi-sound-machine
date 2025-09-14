@@ -1,17 +1,11 @@
 #!/usr/bin/env python3
 """Raspberry Pi uninstallation script."""
 import argparse
-import subprocess  # noqa: S404 subprocess` module is possibly insecure
 import sys
-from contextlib import suppress
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from installer_tools import (
-    SERVICE_NAME,
-    SYSTEM_SERVICE_FILE,
-    InstallerTools,
-)
+from device_tool_box import SERVICE_FILE_NAME, InstallerTools
 
 
 class UninstallError(Exception):
@@ -36,16 +30,6 @@ class Uninstaller(InstallerTools):
             error = 'Could not uninstall tmux.'
             raise UninstallError(error)
 
-    def uninstall_yq(self) -> None:
-        if not self.is_yq_installed():
-            print('yq not found. No uninstalling...')
-            return
-        print('Uninstalling yq')
-        self.run_command('sudo apt-get remove yq -y')
-        if self.is_yq_installed():
-            error = 'Could not uninstall yq.'
-            raise UninstallError(error)
-
     def uninstall_uv(self) -> None:
         if not self.is_uv_installed():
             print('uv not found. No uninstalling...')
@@ -68,11 +52,8 @@ class Uninstaller(InstallerTools):
 
     def uninstall_service(self) -> None:
         """Uninstall the systemd service."""
-        print(f'Removing service: {SERVICE_NAME}.service')
-        self.stop_service()
-        with suppress(subprocess.CalledProcessError):
-            self.run_command(f'sudo rm {SYSTEM_SERVICE_FILE}')
-        self.run_command('sudo systemctl daemon-reload')
+        print(f'Removing service: {SERVICE_FILE_NAME}')
+        self.remove_service()
 
     @staticmethod
     def uninstall(installable_items: dict[str, callable], uninstalls: list) -> None:
@@ -105,7 +86,6 @@ def main() -> None:
     installable_items = {
         'service': uninstaller.uninstall_service,
         'tmux': uninstaller.uninstall_tmux,
-        'yq': uninstaller.uninstall_yq,
         'uv': uninstaller.uninstall_uv,
         'snap': uninstaller.uninstall_snap,
     }
