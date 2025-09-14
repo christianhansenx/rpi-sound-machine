@@ -123,6 +123,7 @@ def main() -> None:
             'tmux': installer.install_tmux,
             'snap': installer.install_snap,
             'uv': installer.install_uv,
+            'service': installer.restart_service,
         }
         installable = list(installable_items.keys())
         installs = list(args.install) if args.install else list(installable)

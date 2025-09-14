@@ -10,8 +10,6 @@ TMUX_ATTACH ?= true
 
 no_arguments:
 	@echo "Provide arguments: install | run | stop"
-	@echo "$(APPLICATION_SCRIPT)"
-	@echo "$(TMUX_SESSION_NAME)"
 
 stop:
 	@echo "Stopping application. (placeholder - not implemented yet)"
@@ -23,7 +21,7 @@ kill_tmux:
 
 install: stop kill_tmux
 	@echo "Installing needed applications and restarting application service."
-	@python installer.py -y --restart-service
+	@python device_tool.py -y --restart-service
 
 run: stop kill_tmux
 	@echo "Starting new tmux session '$(TMUX_SESSION_NAME)'"
@@ -31,7 +29,7 @@ run: stop kill_tmux
 	@tmux send-keys -t $(TMUX_SESSION_NAME):0.0 "uv run --no-group dev $(APPLICATION_FILE)" C-m
 	ifeq ($(TMUX_LOG),true)
 		@echo "Configuring tmux logging."
-		@tmux pipe-pane -t $(TMUX_SESSION_NAME):0.0 -o "cat >> \"$(shell yq -r ".tmux.log_file_path_pattern" $(SETTINGS_FILE) | sed "s/{session_name}/$(TMUX_SESSION_NAME)/g" | sed "s/{timestamp}/$(shell date +%Y%m%d_%H%M%S)/g")\""
+		@tmux pipe-pane -t $(TMUX_SESSION_NAME):0.0 -o "cat >> $(TMUX_LOG_FILE)"
 	endif
 	ifeq ($(TMUX_ATTACH),true)
 		@echo "Attaching to tmux session: $(TMUX_SESSION_NAME)"
