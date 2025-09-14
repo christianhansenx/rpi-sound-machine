@@ -1,7 +1,10 @@
 MAKEFILE_SETTINGS_FILE := /tmp/makefile_settings.mk
+
+.PHONY: $(MAKEFILE_SETTINGS_FILE)
 $(MAKEFILE_SETTINGS_FILE):
-	@python3 device_tool.py --make-settings-file > $(MAKEFILE_SETTINGS_FILE)
-include $(MAKEFILE_SETTINGS_FILE)
+	python3 device_tool.py --make-settings-file
+
+-include $(MAKEFILE_SETTINGS_FILE)
 
 TMUX_LOG ?= true
 TMUX_ATTACH ?= true
@@ -14,8 +17,11 @@ no_arguments:
 stop:
 	@echo "Stopping application. (placeholder - not implemented yet)"
 
-kill_tmux:
-	@echo "Killing tmux session"
+kill-tmux:
+	@echo "Killing tmux session: $(TMUX_SESSION_NAME)"
+
+	-@echo "$(TMUX_LOG_FILE)"
+
 	-@tmux kill-session -t $(TMUX_SESSION_NAME) 2>/dev/null
 	-@rm -f /tmp/$(TMUX_SESSION_NAME)-tmux_*.log 2>/dev/null
 

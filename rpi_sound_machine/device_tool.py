@@ -139,9 +139,7 @@ def main() -> None:
         installer.install(installable_items, installs_ordered)
         if args.restart_service:
             installer.restart_service()
-
     print()
-    print('Success!')
 
 
 if __name__ == '__main__':

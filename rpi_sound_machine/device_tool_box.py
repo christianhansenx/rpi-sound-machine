@@ -20,7 +20,15 @@ class Settings:
     """Class container of settings."""
 
     def __init__(self) -> None:
-        """Read settings file."""
+        """Read settings file.
+
+        Raises:
+            FileNotFoundError: if settings file was not found.
+
+        """
+        if not Path(SETTINGS_FILE).exists():
+            error = f'Settings file not found: {SETTINGS_FILE}'
+            raise FileNotFoundError(error)
         self._settings_data = configparser.ConfigParser()
         self._settings_data.read(SETTINGS_FILE)
 
