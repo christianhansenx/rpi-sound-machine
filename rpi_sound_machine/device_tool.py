@@ -95,7 +95,7 @@ def main() -> None:
     parser.add_argument(
         '--make-settings-file',
         action='store_true',
-        help='Printing settings from setting file.',
+        help='GeneratePrinting settings from setting file.',
     )
     parser.add_argument(
         '--install',

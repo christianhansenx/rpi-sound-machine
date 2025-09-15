@@ -95,6 +95,11 @@ class InstallerTools:
             list of running process id's
 
         """
+        _stdin, stdout, _stderr = ssh_client.client.exec_command(f'pgrep -f "{process_name}"')
+        proc_ids = stdout.read().decode('utf-8').strip().split('\n')
+        return [pid for pid in proc_ids if pid]
+
+
         proc_ids = _rpi_check_running_app(ssh_client, process_name)
         valid_proc_ids = [pid for pid in proc_ids if pid]
         if valid_proc_ids:

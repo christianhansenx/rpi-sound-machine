@@ -18,7 +18,7 @@ from .ssh_client import SshClient, SshClientHandler
 UPLOAD_EXCLUDES_FOLDERS = ['.venv', '.git', '.ruff_cache', '__pycache__']
 UPLOAD_EXCLUDES_FILES = []  # Add specific file names here if needed
 RPI_HOST_CONFIG_FILE = Path('rpi_host_config.yaml')
-RPI_SETTINGS_FILE = Path('settings.yaml')
+RPI_SETTINGS_FILE = Path('settings.mk')
 
 
 class StartRpiTmuxError(Exception):
@@ -37,18 +37,12 @@ class KillSignals(enum.StrEnum):
     SIGKILL = '-9'  # Force kill
 
 
-class _RpiTmuxSettings(BaseModel):
-    """Pydantic model for RPI tmux settings."""
-
-    session_name: str = Field(..., description='The tmux session name to create.')
-    log_file_path_pattern: str = Field(..., description='The log file path pattern for the tmux session.')
-
-
 class _RpiSettings(BaseModel):
     """Pydantic model for RPI settings."""
 
-    application_file: str = Field(..., description='The main application file to run on the RPI.')
-    tmux: _RpiTmuxSettings = Field(..., description='The tmux settings.')
+    application_script: str = Field(..., description='The main application file to run on the RPI.')
+    tmux_session_name: str = Field(..., description='The tmux session name.')
+    tmux_log_file_pattern: str = Field(..., description='The log file path pattern for the tmux session.')
 
 
 class RpiRemoteToolsConfig(BaseModel):
@@ -66,11 +60,19 @@ class RpiRemoteToolsConfig(BaseModel):
     @cached_property
     def rpi_settings(self) -> _RpiSettings:
         rpi_settings_file_path = self.local_project_path / RPI_SETTINGS_FILE
-        with Path.open(rpi_settings_file_path, encoding='utf-8') as file:
-            settings = yaml.safe_load(file)
-        tmux_settings = settings['tmux']
-        tmux_settings['log_file_path_pattern'] = tmux_settings['log_file_path_pattern'].format(
-            session_name=tmux_settings['session_name'],
+
+        settings = {}
+        with rpi_settings_file_path.open('r', encoding='utf-8') as f:
+            contents = f.read()
+        for file_line in contents.splitlines():
+            line = file_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if ':=' in line:
+                key, value = line.split(':=', 1)
+                settings[key.strip().lower()] = value.strip()
+        settings['tmux_log_file_pattern'] = settings['tmux_log_file_pattern'].format(
+            session_name=settings['tmux_session_name'],
             timestamp=r'{timestamp}',
         )
         return _RpiSettings(**settings)
@@ -160,7 +162,7 @@ def _rpi_check_process_id(ssh_client: SshClient, proc_id: str) -> bool:
 
 
 def _rpi_tmux_get_log_file_path(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> str | None:
-    log_files_search_pattern = config.rpi_settings.tmux.log_file_path_pattern.format(timestamp='*')
+    log_files_search_pattern = config.rpi_settings.tmux_log_file_pattern.format(timestamp='*')
     _stdin, stdout, stderr = ssh_client.client.exec_command(f'ls {log_files_search_pattern}')
     status = stdout.channel.recv_exit_status()
     if status:
@@ -259,7 +261,7 @@ def _tmux_terminal(
     # Start application (if required)
     if restart_application:
         ssh_client.client.exec_command(f'{config.remote_project_folder}/start.sh')
-        print(f'Application {config.rpi_settings.application_file} on {ssh_client.connection} has been started')
+        print(f'Application {config.rpi_settings.application_script} on {ssh_client.connection} has been started')
 
     _tmux_terminal_streaming(ssh_client, process_name, tmux_log_file_path, config, sftp_client)
 
@@ -375,7 +377,7 @@ def main() -> None:
 
     with SshClientHandler(RPI_HOST_CONFIG_FILE) as ssh_client:
         config = _get_configurations(args.configurations, ssh_client.username)
-        rpi_application_process_name = f'python3 {config.rpi_settings.application_file}'
+        rpi_application_process_name = f'python3 {config.rpi_settings.application_script}'
 
         if args.rpi_check_app:
             rpi_check_running_app(ssh_client, rpi_application_process_name)
