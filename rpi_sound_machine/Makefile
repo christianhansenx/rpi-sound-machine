@@ -1,15 +1,12 @@
-SHELL = /bin/bash
-MAKEFILE_SETTINGS_FILE := /tmp/makefile_settings.sh
+MAKEFILE_SETTINGS_FILE := settings.mk
+include $(MAKEFILE_SETTINGS_FILE)
 
-# This is a key step: a target that ensures the settings file is created.
-.PHONY: $(MAKEFILE_SETTINGS_FILE)
-$(MAKEFILE_SETTINGS_FILE):
-	python device_tool.py --make-settings-file
-
+# Set default values for variables.
 TMUX_LOG ?= true
 TMUX_ATTACH ?= true
 
-.PHONY: no_arguments stop install run reboot kill-tmux
+# Define your phony targets.
+.PHONY: no_arguments stop kill-tmux install run reboot
 
 no_arguments:
 	@echo "Provide arguments: install | run | stop"
@@ -18,11 +15,10 @@ stop:
 	@echo "Stopping application. (placeholder - not implemented yet)"
 
 kill-tmux: $(MAKEFILE_SETTINGS_FILE)
-	@source $(MAKEFILE_SETTINGS_FILE); \
-	echo "Killing tmux session: $$TMUX_SESSION_NAME"; \
-	echo "Log file: $$TMUX_LOG_FILE"; \
-	-tmux kill-session -t $$TMUX_SESSION_NAME 2>/dev/null; \
-	-rm -f "$$TMUX_LOG_FILES_TO_REMOVE" 2>/dev/null
+	@echo "Killing tmux session: $(TMUX_SESSION_NAME)"
+	@echo "Log file pattern: $(TMUX_LOG_FILE_PATTERN)"
+	-@tmux kill-session -t $(TMUX_SESSION_NAME) 2>/dev/null
+	# -@rm -f $(TMUX_LOG_FILES_TO_REMOVE) 2>/dev/null
 
 install: stop kill-tmux
 	@echo "Installing needed applications and restarting application service."
@@ -31,15 +27,15 @@ install: stop kill-tmux
 run: stop kill-tmux
 	@echo "Starting new tmux session '$(TMUX_SESSION_NAME)'"
 	@tmux new-session -d -s $(TMUX_SESSION_NAME)
-	@tmux send-keys -t $(TMUX_SESSION_NAME):0.0 "uv run --no-group dev $(APPLICATION_FILE)" C-m
-	ifeq ($(TMUX_LOG),true)
-		@echo "Configuring tmux logging."
-		@tmux pipe-pane -t $(TMUX_SESSION_NAME):0.0 -o "cat >> $(TMUX_LOG_FILE)"
-	endif
-	ifeq ($(TMUX_ATTACH),true)
-		@echo "Attaching to tmux session: $(TMUX_SESSION_NAME)"
-		@tmux attach -t $(TMUX_SESSION_NAME)
-	endif
+	@tmux send-keys -t $(TMUX_SESSION_NAME):0.0 "uv run --no-group dev $(APPLICATION_SCRIPT)" C-m
+ifeq ($(TMUX_LOG),true)
+	@echo "Configuring tmux logging."
+	@tmux pipe-pane -t $(TMUX_SESSION_NAME):0.0 -o "cat >> $(TMUX_LOG_FILE)"
+endif
+ifeq ($(TMUX_ATTACH),true)
+	@echo "Attaching to tmux session: $(TMUX_SESSION_NAME)"
+	@tmux attach -t $(TMUX_SESSION_NAME)
+endif
 
 reboot:
 	@echo "Rebooting device."

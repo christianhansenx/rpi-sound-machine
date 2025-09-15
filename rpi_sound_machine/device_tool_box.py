@@ -13,7 +13,7 @@ SETTINGS_APPLICATION_KEYWORD = 'application'
 SETTINGS_TMUX_KEYWORD = 'tmux'
 LOCAL_SERVICE_DIRECTORY = Path(__file__).parent / 'system-service'
 SERVICE_STOP_SERVICE_TIME_OUT = 15.0
-TEMPORARY_MAKEFILE_SETTINGS_FILE = '/tmp/makefile_settings.sh'  # noqa: S108 Probable insecure usage of temporary file
+TEMPORARY_MAKEFILE_SETTINGS_FILE = '/tmp/makefile_settings.mk'  # noqa: S108 Probable insecure usage of temporary file
 
 
 class Settings:
@@ -40,7 +40,7 @@ class Settings:
         self.system_service_file = Path(f'/etc/systemd/system/{service_file_name}')
         self.system_start_script = Path(f'/usr/local/bin/{start_script_name}')
 
-    def create_make_include_file(self) -> str:
+    def create_make_include_file(self) -> None:
         tmux_session_name = self._settings_data[SETTINGS_TMUX_KEYWORD]['session_name']
         tmux_file_path_pattern = self._settings_data[SETTINGS_TMUX_KEYWORD]['log_file_path_pattern'].format(
             session_name=tmux_session_name,
@@ -51,11 +51,10 @@ class Settings:
         mk_file = Path(TEMPORARY_MAKEFILE_SETTINGS_FILE)
         mk_file.write_text(
             '\n'.join([
-                '#!/bin/bash',
-                f'APPLICATION_SCRIPT={self._settings_data[SETTINGS_APPLICATION_KEYWORD]["script"]}',
-                f'TMUX_SESSION_NAME={tmux_session_name}',
-                f'TMUX_LOG_FILES_TO_REMOVE={tmux_file_path_pattern.format(timestamp="*")}',
-                f'TMUX_LOG_FILE={tmux_file_path_pattern.format(timestamp=tmux_log_file_time_stamp)}',
+                f'APPLICATION_SCRIPT := "{self._settings_data[SETTINGS_APPLICATION_KEYWORD]["script"]}"',
+                f'TMUX_SESSION_NAME := "{tmux_session_name}"',
+                f'TMUX_LOG_FILES_TO_REMOVE := "{tmux_file_path_pattern.format(timestamp="*")}"',
+                f'TMUX_LOG_FILE := "{tmux_file_path_pattern.format(timestamp=tmux_log_file_time_stamp)}"',
             ]) + '\n',
             encoding='utf-8',
         )
