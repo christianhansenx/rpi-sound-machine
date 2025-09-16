@@ -137,7 +137,7 @@ class SshClientHandler:
             An SshClient instance with an active SSH connection.
 
         """
-        print(f'\nCreate SSH connection to {self._config['username']}@{self._config['hostname']}')
+        print(f'Create SSH connection to {self._config['username']}@{self._config['hostname']}\n')
         client = paramiko.SSHClient()
 
         # Linting: S507 Paramiko call with policy set to automatically trust the unknown host key
@@ -160,8 +160,6 @@ class SshClientHandler:
         """Close SSH connection."""
         if self._client:
             self._client.client.close()
-            print()
-            print('SSH connection is closed')
 
     @staticmethod
     def _load_or_create_config(config_file: Path) -> None:

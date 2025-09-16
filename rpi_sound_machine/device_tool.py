@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from device_tool_box import InstallerTools, settings
+from device_tool_box import ApplicationProcess, InstallerTools
 
 
 class InstallError(Exception):
@@ -93,9 +93,14 @@ def main() -> None:
         help='User will not be asked to confirmation installation.',
     )
     parser.add_argument(
-        '--make-settings-file',
+        '--get-application-process-ids',
         action='store_true',
-        help='GeneratePrinting settings from setting file.',
+        help='Printing running application process IDs.',
+    )
+    parser.add_argument(
+        '--stop-application',
+        action='store_true',
+        help='Stopping running application process.',
     )
     parser.add_argument(
         '--install',
@@ -113,17 +118,21 @@ def main() -> None:
         raise RuntimeError(error)
 
     args = parser.parse_args()
-    if args.make_settings_file:
-        settings.create_make_include_file()
+
+    application_process = ApplicationProcess()
+    if args.get_application_process_ids:
+        application_process.get_ids()
+    if args.stop_application:
+        application_process.stop()
 
     if args.install is not None:
-        installer = Installer(skip_apt_get_update=args.skip_apt_get_update)
+        installer = Installer(application_process, skip_apt_get_update=args.skip_apt_get_update)
         installable_items = {
             'set_exec': installer.make_files_executable,
             'tmux': installer.install_tmux,
             'snap': installer.install_snap,
             'uv': installer.install_uv,
-            'service': installer.restart_service,
+            'service': installer.application_process.restart_service,
         }
         installable = list(installable_items.keys())
         installs = list(args.install) if args.install else list(installable)

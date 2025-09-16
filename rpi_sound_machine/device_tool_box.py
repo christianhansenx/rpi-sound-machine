@@ -1,12 +1,11 @@
 """Raspberry Pi tool box module."""
 import configparser
+import enum
 import filecmp
 import subprocess  # noqa: S404 `subprocess` module is possibly insecure
 import time
 from contextlib import suppress
-from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 SETTINGS_FILE = 'settings.ini'
 SETTINGS_APPLICATION_KEYWORD = 'application'
@@ -14,6 +13,46 @@ SETTINGS_TMUX_KEYWORD = 'tmux'
 LOCAL_SERVICE_DIRECTORY = Path(__file__).parent / 'system-service'
 SERVICE_STOP_SERVICE_TIME_OUT = 15.0
 TEMPORARY_MAKEFILE_SETTINGS_FILE = '/tmp/makefile_settings.mk'  # noqa: S108 Probable insecure usage of temporary file
+
+
+class KillRpiProcessError(Exception):
+    """Could not kill application on RPI."""
+
+
+class KillSignals(enum.StrEnum):
+    """Kill signals for stopping application on RPI."""
+
+    SIGTERM = '-15'  # Terminate gracefully
+    SIGINT = '-2'  # Ctrl+C
+    SIGKILL = '-9'  # Force kill
+
+
+def _run_command(command: str, *, check: bool = True, raise_std_error: bool = True) -> subprocess.CompletedProcess:
+    r"""Run a shell command.
+
+    Args:
+        command: The command to run.
+        check: Whether to raise an error on a non-zero exit code.
+        raise_std_error: Whether to raise an error if there is output on stderr.
+
+    Returns:
+        The CompletedProcess instance.
+        Example: CompletedProcess(args='sudo snap remove yq', returncode=0, stdout='', stderr='snap "yq" is not installed\n')
+
+    Raises:
+        subprocess.CalledProcessError: If the command fails and check is True, or .
+
+    """
+    # Ruff S602 = `subprocess` call with `shell=True` identified, security issue
+    result = subprocess.run(command, shell=True, check=check, capture_output=True, text=True)  # noqa: S602
+    if raise_std_error and result.stderr:
+        raise subprocess.CalledProcessError(
+            result.returncode,
+            result.args,
+            output=result.stdout,
+            stderr=result.stderr,
+        )
+    return result
 
 
 class Settings:
@@ -33,6 +72,7 @@ class Settings:
         self._settings_data.read(SETTINGS_FILE)
 
         self.service_name = self._settings_data[SETTINGS_APPLICATION_KEYWORD]['service_name']
+        self.service_name = self._settings_data[SETTINGS_APPLICATION_KEYWORD]['service_name']
         start_script_name = f'{self.service_name}-start.sh'
         service_file_name = f'{self.service_name}.service'
         self.local_service_file = LOCAL_SERVICE_DIRECTORY / service_file_name
@@ -40,115 +80,27 @@ class Settings:
         self.system_service_file = Path(f'/etc/systemd/system/{service_file_name}')
         self.system_start_script = Path(f'/usr/local/bin/{start_script_name}')
 
-    def create_make_include_file(self) -> None:
-        tmux_session_name = self._settings_data[SETTINGS_TMUX_KEYWORD]['session_name']
-        tmux_file_path_pattern = self._settings_data[SETTINGS_TMUX_KEYWORD]['log_file_path_pattern'].format(
-            session_name=tmux_session_name,
-            timestamp=r'{timestamp}',
-        )
-        tmux_log_file_time_stamp = datetime.now(tz=ZoneInfo('UTC')).strftime('%Y%m%d_%H%M%S')
-
-        mk_file = Path(TEMPORARY_MAKEFILE_SETTINGS_FILE)
-        mk_file.write_text(
-            '\n'.join([
-                f'APPLICATION_SCRIPT := "{self._settings_data[SETTINGS_APPLICATION_KEYWORD]["script"]}"',
-                f'TMUX_SESSION_NAME := "{tmux_session_name}"',
-                f'TMUX_LOG_FILES_TO_REMOVE := "{tmux_file_path_pattern.format(timestamp="*")}"',
-                f'TMUX_LOG_FILE := "{tmux_file_path_pattern.format(timestamp=tmux_log_file_time_stamp)}"',
-            ]) + '\n',
-            encoding='utf-8',
-        )
+        self.grep_process_name = f'[p]ython3 {self._settings_data[SETTINGS_APPLICATION_KEYWORD]["script"]}'
+        self.process_name = self.grep_process_name.replace('[p]', 'p')
 
 
 settings = Settings()
 
 
-class InstallerTools:
-    """Class with tools for installation and uninstallation."""
+class ApplicationProcess:
+    """Methods for application check end ending process."""
 
-    def __init__(self, *, skip_apt_get_update: bool = False) -> None:
-        """Initialize installer tools."""
-        self._skip_apt_get_update = skip_apt_get_update
-        self._reboot_required = False
-
-        # Update service files if updated
-        if self.files_are_different(settings.local_start_script, settings.system_start_script):
-            self.run_command(f'sudo chmod +x {settings.local_start_script}')
-            self.run_command(f'sudo cp {settings.local_start_script} {settings.system_start_script}')
-        if self.files_are_different(settings.local_service_file, settings.system_service_file):
-            self.run_command(f'sudo cp {settings.local_service_file} {settings.system_service_file}')
-
-    def set_reboot_required(self) -> None:
-        self._reboot_required = True
-
-    def apt_get_update(self) -> None:
-        """Run apt-get update if not already done."""
-        if not self._skip_apt_get_update:
-            print('Running apt-get update')
-            self.run_command('sudo apt-get update')
-            self._skip_apt_get_update = True
-
-    def get_process_ids(self, process_name: str, *, message_no_process: bool = True) -> list[str]:
-        """Check about processes are running.
-
-        Returns:
-            list of running process id's
-
-        """
-        _stdin, stdout, _stderr = ssh_client.client.exec_command(f'pgrep -f "{process_name}"')
-        proc_ids = stdout.read().decode('utf-8').strip().split('\n')
-        return [pid for pid in proc_ids if pid]
-
-
-        proc_ids = _rpi_check_running_app(ssh_client, process_name)
-        valid_proc_ids = [pid for pid in proc_ids if pid]
-        if valid_proc_ids:
-            print(f'Process "{process_name}" running')
-            print(f'Found existing PID(s): {", ".join(valid_proc_ids)}')
-        elif message_no_process:
-            print(f'No existing process found of "{ssh_client.connection} {process_name}"')
-        return valid_proc_ids
-
-    @staticmethod
-    def run_command(
-            command: str,
-            *,
-            check: bool = True,
-            raise_std_error: bool = True,
-    ) -> subprocess.CompletedProcess:
-        r"""Run a shell command.
-
-        Args:
-            command: The command to run.
-            check: Whether to raise an error on a non-zero exit code.
-            raise_std_error: Whether to raise an error if there is output on stderr.
-
-        Returns:
-            The CompletedProcess instance.
-            Example: CompletedProcess(args='sudo snap remove yq', returncode=0, stdout='', stderr='snap "yq" is not installed\n')
-
-        Raises:
-            subprocess.CalledProcessError: If the command fails and check is True, or .
-
-        """
-        # Ruff S602 = `subprocess` call with `shell=True` identified, security issue
-        result = subprocess.run(command, shell=True, check=check, capture_output=True, text=True)  # noqa: S602
-        if raise_std_error and result.stderr:
-            raise subprocess.CalledProcessError(
-                result.returncode,
-                result.args,
-                output=result.stdout,
-                stderr=result.stderr,
-            )
-        return result
+    def __init__(self) -> None:
+        """Initialize."""
+        self._proc_ids = []
 
     def restart_service(self) -> None:
         print(f'Restarting {settings.service_name}.service')
         self.stop_service()
 
-        self.run_command('sudo systemctl daemon-reload')
-        self.run_command(f'sudo systemctl enable {settings.service_name}.service')
-        self.run_command(f'sudo systemctl start {settings.service_name}.service')
+        _run_command('sudo systemctl daemon-reload')
+        _run_command(f'sudo systemctl enable {settings.service_name}.service')
+        _run_command(f'sudo systemctl start {settings.service_name}.service')
 
         start_time = time.monotonic()
         while True:
@@ -162,7 +114,7 @@ class InstallerTools:
     def stop_service(self) -> None:
         if not self.is_service_active(raise_exception=False):
             return
-        self.run_command(f'sudo systemctl stop {settings.service_name}.service')
+        _run_command(f'sudo systemctl stop {settings.service_name}.service')
         start_time = time.monotonic()
         while True:
             if not self.is_service_active(raise_exception=False):
@@ -172,12 +124,14 @@ class InstallerTools:
                 raise RuntimeError(error)
             time.sleep(0.5)
 
-    def remove_service(self) -> None:
+    @staticmethod
+    def remove_service() -> None:
         with suppress(subprocess.CalledProcessError):
-            self.run_command(f'sudo rm {settings.system_service_file}')
-        self.run_command('sudo systemctl daemon-reload')
+            _run_command(f'sudo rm {settings.system_service_file}')
+        _run_command('sudo systemctl daemon-reload')
 
-    def is_service_active(self, *, raise_exception: bool = False) -> bool:
+    @staticmethod
+    def is_service_active(*, raise_exception: bool = False) -> bool:
         """Check if service is running.
 
         Returns:
@@ -186,15 +140,115 @@ class InstallerTools:
         """
         command = f'systemctl is-active {settings.service_name}'
         if raise_exception:
-            result = self.run_command(command, check=True)
+            result = _run_command(command, check=True)
         else:
             try:
-                result = self.run_command(command, check=True)
+                result = _run_command(command, check=True)
             except subprocess.CalledProcessError:
                 return False
         return result.stdout.strip() == 'active'
 
-    def is_tmux_installed(self) -> bool:
+    @staticmethod
+    def get_ids(*, print_message: bool = True) -> list[str]:
+        """Get all ID of all running application processes.
+
+        Returns:
+            list of running process id's
+
+        """
+        result = _run_command(f'pgrep -f "{settings.grep_process_name}"', check=False)
+        proc_ids = result.stdout.split('\n')
+        valid_proc_ids = [pid for pid in proc_ids if pid]
+        if print_message:
+            if valid_proc_ids:
+                print(f'Process "{settings.process_name}", running ID(s): {", ".join(valid_proc_ids)}')
+            else:
+                print(f'Process "{settings.process_name}" is not running.')
+        return valid_proc_ids
+
+    def stop(self, *, msg_no_kill: bool = True) -> None:
+        """Stop application on RPI.
+
+        Raises:
+            KillRpiProcessError: If application could not get killed.
+
+        """
+        self.stop_service()
+        if not (proc_ids := self.get_ids(print_message=False)):
+            if msg_no_kill:
+                print('No running process found, nothing to kill')
+            return
+        print(f'Killing process "{settings.process_name}" with PID(s): {", ".join(proc_ids)}')
+        kill_error = 'unknown error'
+        for kill_signal in KillSignals:
+            for pid in proc_ids:
+                if self._check_process_id(pid):
+                    result = _run_command(f'kill {kill_signal.value} {pid}', check=False, raise_std_error=False)
+                    if result.returncode != 0:
+                        error = (
+                            f'Failed to kill "{settings.process_name}" (PID {pid}) with {kill_signal.name}: '
+                            f'{result.stderr.strip()}'
+                        )
+                        raise KillRpiProcessError(error)
+                    time.sleep(0.2)
+            if not (kill_error := self._wait_processed_killed(kill_signal)):
+                break
+
+        else:
+            raise KillRpiProcessError(kill_error)
+        print(f'Successfully killed "{settings.process_name}" with {kill_signal.name}')
+
+    @staticmethod
+    def _check_process_id(proc_id: str) -> bool:
+        result = _run_command(f'ps -p {proc_id}', check=False)
+        return result.returncode == 0
+
+    def _wait_processed_killed(self, kill_signal: KillSignals) -> str | None:
+        kill_error = None
+        check_reties = 10
+        while True:
+            if not (proc_ids := self.get_ids(print_message=False)):
+                break
+            check_reties -= 1
+            if check_reties < 0:
+                kill_error = (
+                    f'Failed to kill'
+                    f' "{settings.process_name}" with {kill_signal.name}, PID(s) still alive: {", ".join(proc_ids)}'
+                )
+                print(f'{kill_error}')
+                break
+            time.sleep(0.2)
+        return kill_error
+
+
+class InstallerTools:
+    """Class with tools for installation and uninstallation."""
+
+    def __init__(self, application_process: ApplicationProcess, *, skip_apt_get_update: bool = False) -> None:
+        """Initialize installer tools."""
+        self.application_process = application_process
+        self._skip_apt_get_update = skip_apt_get_update
+        self._reboot_required = False
+
+        # Update service files if updated
+        if self.files_are_different(settings.local_start_script, settings.system_start_script):
+            _run_command(f'sudo chmod +x {settings.local_start_script}')
+            _run_command(f'sudo cp {settings.local_start_script} {settings.system_start_script}')
+        if self.files_are_different(settings.local_service_file, settings.system_service_file):
+            _run_command(f'sudo cp {settings.local_service_file} {settings.system_service_file}')
+
+    def set_reboot_required(self) -> None:
+        self._reboot_required = True
+
+    def apt_get_update(self) -> None:
+        """Run apt-get update if not already done."""
+        if not self._skip_apt_get_update:
+            print('Running apt-get update')
+            _run_command('sudo apt-get update')
+            self._skip_apt_get_update = True
+
+    @staticmethod
+    def is_tmux_installed() -> bool:
         """Check if tmux is installed.
 
         Returns:
@@ -202,7 +256,7 @@ class InstallerTools:
 
         """
         try:
-            self.run_command('which tmux', check=True)
+            _run_command('which tmux', check=True)
         except subprocess.CalledProcessError:
             return False
         return True
@@ -219,7 +273,8 @@ class InstallerTools:
             return True
         return not filecmp.cmp(file1, file2, shallow=False)
 
-    def is_uv_installed(self) -> bool:
+    @staticmethod
+    def is_uv_installed() -> bool:
         """Check if uv is installed.
 
         Returns:
@@ -227,12 +282,13 @@ class InstallerTools:
 
         """
         try:
-            self.run_command('which uv', check=True)
+            _run_command('which uv', check=True)
         except subprocess.CalledProcessError:
             return False
         return True
 
-    def is_snap_installed(self) -> bool:
+    @staticmethod
+    def is_snap_installed() -> bool:
         """Check if snap is installed.
 
         Returns:
@@ -240,7 +296,7 @@ class InstallerTools:
 
         """
         try:
-            self.run_command('which snap', check=True)
+            _run_command('which snap', check=True)
         except subprocess.CalledProcessError:
             return False
         return True

@@ -3,10 +3,9 @@
 ## Improvements
 
 - create issues in github
-- setup vbs code to use spaces for tab in Makefile
 - continue current play after reboot
 - setting up github to run test at pull request
-- refactor and document install and uninstall items (also implement --exclude (add apt_get_update as item))
+- refactor and document install and uninstall items (also implement --exclude (add apt_get_update as item)), get Killsignal enums
 - remote install and reboot (just rpi install, boot, off)
 - graceful stop of rpi app via rpi_remote.py (stop service if it is running)
 - locate files in ~/.config on the RPI
