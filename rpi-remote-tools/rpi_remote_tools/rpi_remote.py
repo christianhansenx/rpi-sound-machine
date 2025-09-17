@@ -114,6 +114,11 @@ def rpi_stop_application(ssh_client: SshClient, config: RpiRemoteToolsConfig) ->
     rpi_command.command('make stop')
 
 
+def rpi_run(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
+    rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
+    rpi_command.command('make run')
+
+
 def _rpi_tmux_get_log_file_path(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> str | None:
     log_files_search_pattern = config.rpi_settings.tmux_log_file_pattern.format(timestamp='*')
     _stdin, stdout, stderr = ssh_client.client.exec_command(f'ls {log_files_search_pattern}')
@@ -336,12 +341,12 @@ def main() -> None:
         elif args.rpi_kill_app:
             rpi_stop_application(ssh_client, config)
         elif args.rpi_run_app:
-            rpi_tmux(ssh_client, rpi_application_process_name, config, restart_application=True)
+            rpi_run(ssh_client, config)
         elif args.rpi_tmux:
             rpi_tmux(ssh_client, rpi_application_process_name, config)
         elif args.rpi_copy_code:
-            # rpi_stop_application(ssh_client, config)
             rpi_upload_app_files(ssh_client, config)
+            # rpi_stop_application(ssh_client, config)
             # rpi_tmux(ssh_client, rpi_application_process_name, config, restart_application=True)
 
 

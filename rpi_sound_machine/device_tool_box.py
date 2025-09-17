@@ -5,7 +5,9 @@ import filecmp
 import subprocess  # noqa: S404 `subprocess` module is possibly insecure
 import time
 from contextlib import suppress
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 SETTINGS_FILE = 'settings.ini'
 SETTINGS_APPLICATION_KEYWORD = 'application'
@@ -21,6 +23,7 @@ class KillRpiProcessError(Exception):
 
 class KillRpiTmuxSessionError(Exception):
     """Could not kill tmux session on RPI."""
+
 
 class KillSignals(enum.StrEnum):
     """Kill signals for stopping application on RPI."""
@@ -86,6 +89,7 @@ class Settings:
         self._settings_data = configparser.ConfigParser()
         self._settings_data.read(SETTINGS_FILE)
 
+        self.application_script = self._settings_data[SETTINGS_APPLICATION_KEYWORD]['script']
         self.service_name = self._settings_data[SETTINGS_APPLICATION_KEYWORD]['service_name']
         self.service_name = self._settings_data[SETTINGS_APPLICATION_KEYWORD]['service_name']
         start_script_name = f'{self.service_name}-start.sh'
@@ -95,7 +99,7 @@ class Settings:
         self.system_service_file = Path(f'/etc/systemd/system/{service_file_name}')
         self.system_start_script = Path(f'/usr/local/bin/{start_script_name}')
 
-        self.grep_process_name = f'[p]ython3 {self._settings_data[SETTINGS_APPLICATION_KEYWORD]["script"]}'
+        self.grep_process_name = f'[p]ython3 {self.application_script}'
         self.process_name = self.grep_process_name.replace('[p]', 'p')
 
         self.tmux_session_name = self._settings_data[SETTINGS_TMUX_KEYWORD]['session_name']
@@ -104,6 +108,8 @@ class Settings:
             timestamp=r'{timestamp}',
         )
         self.tmux_log_path_search_pattern = tmux_log_path_pattern.format(timestamp='*')
+        timestamp = datetime.now(tz=ZoneInfo('UTC')).strftime('%Y%m%d-%H%M%S')
+        self.tmux_log_path = tmux_log_path_pattern.format(timestamp=timestamp)
 
 
 settings = Settings()
@@ -249,6 +255,28 @@ class ApplicationProcess:
             time.sleep(0.2)
         return kill_error
 
+    def start_application_in_tmux_session(self) -> None:
+        print(f'Starting application "{settings.application_script}" in tmux session: {settings.tmux_session_name}')
+        self.kill_tmux_session(msg_no_kill=False)
+        _run_command(f'tmux new-session -d -s {settings.tmux_session_name}')
+        _run_command(f'tmux pipe-pane -t {settings.tmux_session_name}:0.0 -o "cat >> {settings.tmux_log_path}"')
+        _run_command(
+            f'tmux send-keys -t {settings.tmux_session_name}:0.0 "uv run --no-group dev {settings.application_script}" C-m',
+        )
+        print(f'tmux log file: {settings.tmux_log_path}')
+        print(f'TO ENTER TMUX TERMINAL: tmux attach -t {settings.tmux_session_name}')
+
+    def kill_tmux_session(self, *, msg_no_kill: bool = True) -> None:
+        if msg_no_kill:
+            print(f'Killing tmux session: {settings.tmux_session_name}')
+        if self.is_tmux_active():
+            self.stop_application(msg_no_kill=False)
+            _run_command(f'tmux kill-session -t {settings.tmux_session_name}')
+        if self.is_tmux_active():
+            kill_error = f'Failed to kill tmux session: {settings.tmux_session_name}'
+            raise KillRpiTmuxSessionError(kill_error)
+        _run_command(f'rm -f {settings.tmux_log_path_search_pattern}', check=False, raise_std_error=True)
+
     @staticmethod
     def is_tmux_active(*, raise_exception: bool = False) -> bool:
         """Check if application tmux session is active.
@@ -268,16 +296,6 @@ class ApplicationProcess:
             except subprocess.CalledProcessError:
                 return False
         return not result.returncode
-
-    def kill_tmux_session(self) -> None:
-        print(f'Killing tmux session: {settings.tmux_session_name}')
-        if self.is_tmux_active():
-            self.stop_application(msg_no_kill=False)
-            _run_command(f'tmux kill-session -t {settings.tmux_session_name}')
-        if self.is_tmux_active():
-            kill_error = f'Failed to kill tmux session: {settings.tmux_session_name}'
-            raise KillRpiTmuxSessionError(kill_error)
-        _run_command(f'rm -f {settings.tmux_log_path_search_pattern}', check=False, raise_std_error=True)
 
 
 class InstallerTools:

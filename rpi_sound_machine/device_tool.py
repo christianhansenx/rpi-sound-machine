@@ -108,6 +108,11 @@ def main() -> None:
         help='Killing application tmux session.',
     )
     parser.add_argument(
+        '--run-application',
+        action='store_true',
+        help='Start application in tmux session.',
+    )
+    parser.add_argument(
         '--restart-service',
         action='store_true',
         help='Restarting system service of application.',
@@ -136,6 +141,8 @@ def main() -> None:
         application_process.stop_application()
     if args.kill_tmux:
         application_process.kill_tmux_session()
+    if args.run_application:
+        application_process.start_application_in_tmux_session()
     if args.restart_service:
         application_process.restart_service()
 
