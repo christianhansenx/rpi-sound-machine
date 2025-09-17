@@ -6,6 +6,7 @@
 - continue current play after reboot
 - setting up github to run test at pull request
 - refactor and document install and uninstall items (also implement --exclude (add apt_get_update as item)), get Killsignal enums
+- tools check to check system service and tmux session and tmux log.
 - remote install and reboot (just rpi install, boot, off)
 - graceful stop of rpi app via rpi_remote.py (stop service if it is running)
 - locate files in ~/.config on the RPI

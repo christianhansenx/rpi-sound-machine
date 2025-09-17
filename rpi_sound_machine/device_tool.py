@@ -100,7 +100,17 @@ def main() -> None:
     parser.add_argument(
         '--stop-application',
         action='store_true',
-        help='Stopping running application process.',
+        help='Stopping running application process and its system service.',
+    )
+    parser.add_argument(
+        '--kill-tmux',
+        action='store_true',
+        help='Killing application tmux session.',
+    )
+    parser.add_argument(
+        '--restart-service',
+        action='store_true',
+        help='Restarting system service of application.',
     )
     parser.add_argument(
         '--install',
@@ -121,9 +131,13 @@ def main() -> None:
 
     application_process = ApplicationProcess()
     if args.get_application_process_ids:
-        application_process.get_ids()
+        application_process.get_application_ids()
     if args.stop_application:
-        application_process.stop()
+        application_process.stop_application()
+    if args.kill_tmux:
+        application_process.kill_tmux_session()
+    if args.restart_service:
+        application_process.restart_service()
 
     if args.install is not None:
         installer = Installer(application_process, skip_apt_get_update=args.skip_apt_get_update)

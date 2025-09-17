@@ -19,6 +19,9 @@ class KillRpiProcessError(Exception):
     """Could not kill application on RPI."""
 
 
+class KillRpiTmuxSessionError(Exception):
+    """Could not kill tmux session on RPI."""
+
 class KillSignals(enum.StrEnum):
     """Kill signals for stopping application on RPI."""
 
@@ -55,6 +58,18 @@ def _run_command(command: str, *, check: bool = True, raise_std_error: bool = Tr
     return result
 
 
+def _files_are_different(file1: Path, file2: Path) -> bool:
+    """Compare two files.
+
+    Returns:
+        True if files are different or if one does not exist.
+
+    """
+    if not file2.exists():
+        return True
+    return not filecmp.cmp(file1, file2, shallow=False)
+
+
 class Settings:
     """Class container of settings."""
 
@@ -83,6 +98,13 @@ class Settings:
         self.grep_process_name = f'[p]ython3 {self._settings_data[SETTINGS_APPLICATION_KEYWORD]["script"]}'
         self.process_name = self.grep_process_name.replace('[p]', 'p')
 
+        self.tmux_session_name = self._settings_data[SETTINGS_TMUX_KEYWORD]['session_name']
+        tmux_log_path_pattern = self._settings_data[SETTINGS_TMUX_KEYWORD]['log_path_pattern'].format(
+            session_name=self.tmux_session_name,
+            timestamp=r'{timestamp}',
+        )
+        self.tmux_log_path_search_pattern = tmux_log_path_pattern.format(timestamp='*')
+
 
 settings = Settings()
 
@@ -97,6 +119,13 @@ class ApplicationProcess:
     def restart_service(self) -> None:
         print(f'Restarting {settings.service_name}.service')
         self.stop_service()
+
+        # Update system service files if local file are updated
+        if _files_are_different(settings.local_start_script, settings.system_start_script):
+            _run_command(f'sudo chmod +x {settings.local_start_script}')
+            _run_command(f'sudo cp {settings.local_start_script} {settings.system_start_script}')
+        if _files_are_different(settings.local_service_file, settings.system_service_file):
+            _run_command(f'sudo cp {settings.local_service_file} {settings.system_service_file}')
 
         _run_command('sudo systemctl daemon-reload')
         _run_command(f'sudo systemctl enable {settings.service_name}.service')
@@ -140,16 +169,16 @@ class ApplicationProcess:
         """
         command = f'systemctl is-active {settings.service_name}'
         if raise_exception:
-            result = _run_command(command, check=True)
+            result = _run_command(command)
         else:
             try:
-                result = _run_command(command, check=True)
+                result = _run_command(command)
             except subprocess.CalledProcessError:
                 return False
         return result.stdout.strip() == 'active'
 
     @staticmethod
-    def get_ids(*, print_message: bool = True) -> list[str]:
+    def get_application_ids(*, print_message: bool = True) -> list[str]:
         """Get all ID of all running application processes.
 
         Returns:
@@ -166,7 +195,7 @@ class ApplicationProcess:
                 print(f'Process "{settings.process_name}" is not running.')
         return valid_proc_ids
 
-    def stop(self, *, msg_no_kill: bool = True) -> None:
+    def stop_application(self, *, msg_no_kill: bool = True) -> None:
         """Stop application on RPI.
 
         Raises:
@@ -174,7 +203,7 @@ class ApplicationProcess:
 
         """
         self.stop_service()
-        if not (proc_ids := self.get_ids(print_message=False)):
+        if not (proc_ids := self.get_application_ids(print_message=False)):
             if msg_no_kill:
                 print('No running process found, nothing to kill')
             return
@@ -207,7 +236,7 @@ class ApplicationProcess:
         kill_error = None
         check_reties = 10
         while True:
-            if not (proc_ids := self.get_ids(print_message=False)):
+            if not (proc_ids := self.get_application_ids(print_message=False)):
                 break
             check_reties -= 1
             if check_reties < 0:
@@ -220,6 +249,36 @@ class ApplicationProcess:
             time.sleep(0.2)
         return kill_error
 
+    @staticmethod
+    def is_tmux_active(*, raise_exception: bool = False) -> bool:
+        """Check if application tmux session is active.
+
+        Returns:
+            True if tmux session is active, False otherwise.
+
+        """
+        if _run_command('tmux ls', check=False, raise_std_error=False).returncode:
+            return False
+        command = f'tmux has-session -t {settings.tmux_session_name}'
+        if raise_exception:
+            result = _run_command(command)
+        else:
+            try:
+                result = _run_command(command)
+            except subprocess.CalledProcessError:
+                return False
+        return not result.returncode
+
+    def kill_tmux_session(self) -> None:
+        print(f'Killing tmux session: {settings.tmux_session_name}')
+        if self.is_tmux_active():
+            self.stop_application(msg_no_kill=False)
+            _run_command(f'tmux kill-session -t {settings.tmux_session_name}')
+        if self.is_tmux_active():
+            kill_error = f'Failed to kill tmux session: {settings.tmux_session_name}'
+            raise KillRpiTmuxSessionError(kill_error)
+        _run_command(f'rm -f {settings.tmux_log_path_search_pattern}', check=False, raise_std_error=True)
+
 
 class InstallerTools:
     """Class with tools for installation and uninstallation."""
@@ -229,13 +288,6 @@ class InstallerTools:
         self.application_process = application_process
         self._skip_apt_get_update = skip_apt_get_update
         self._reboot_required = False
-
-        # Update service files if updated
-        if self.files_are_different(settings.local_start_script, settings.system_start_script):
-            _run_command(f'sudo chmod +x {settings.local_start_script}')
-            _run_command(f'sudo cp {settings.local_start_script} {settings.system_start_script}')
-        if self.files_are_different(settings.local_service_file, settings.system_service_file):
-            _run_command(f'sudo cp {settings.local_service_file} {settings.system_service_file}')
 
     def set_reboot_required(self) -> None:
         self._reboot_required = True
@@ -260,18 +312,6 @@ class InstallerTools:
         except subprocess.CalledProcessError:
             return False
         return True
-
-    @staticmethod
-    def files_are_different(file1: Path, file2: Path) -> bool:
-        """Compare two files.
-
-        Returns:
-            True if files are different or if one does not exist.
-
-        """
-        if not file2.exists():
-            return True
-        return not filecmp.cmp(file1, file2, shallow=False)
 
     @staticmethod
     def is_uv_installed() -> bool:

@@ -340,7 +340,7 @@ def main() -> None:
         elif args.rpi_tmux:
             rpi_tmux(ssh_client, rpi_application_process_name, config)
         elif args.rpi_copy_code:
-            rpi_stop_application(ssh_client, config)
+            # rpi_stop_application(ssh_client, config)
             rpi_upload_app_files(ssh_client, config)
             # rpi_tmux(ssh_client, rpi_application_process_name, config, restart_application=True)
 
