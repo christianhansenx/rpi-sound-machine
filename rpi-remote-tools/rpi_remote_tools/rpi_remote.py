@@ -1,5 +1,6 @@
 """Tool functions for RPI Remote control."""
 import argparse
+import configparser
 import enum
 import errno
 import json
@@ -19,7 +20,9 @@ from .ssh_client import SshClient, SshClientHandler
 UPLOAD_EXCLUDES_FOLDERS = ['.venv', '.git', '.ruff_cache', '__pycache__']
 UPLOAD_EXCLUDES_FILES = []  # Add specific file names here if needed
 RPI_HOST_CONFIG_FILE = Path('rpi_host_config.yaml')
-RPI_SETTINGS_FILE = Path('settings.mk')
+RPI_SETTINGS_FILE = Path('settings.ini')
+RPI_SETTINGS_APPLICATION_KEYWORD = 'application'
+RPI_SETTINGS_TMUX_KEYWORD = 'tmux'
 
 
 class RpiRemoteCommandError(Exception):
@@ -43,40 +46,16 @@ class _RpiSettings(BaseModel):
 
     application_script: str = Field(..., description='The main application file to run on the RPI.')
     tmux_session_name: str = Field(..., description='The tmux session name.')
-    tmux_log_file_pattern: str = Field(..., description='The log file path pattern for the tmux session.')
+    tmux_log_path_pattern: str = Field(..., description='The log file path pattern for the tmux session.')
 
 
 class RpiRemoteToolsConfig(BaseModel):
     """Pydantic model for rpi-remote-tools configuration."""
 
     project_directory: str = Field(..., description='The local project directory to sync to the RPI.')
+    local_project_path: Path = Field(..., description='The local path to sync to RPI.')
     remote_project_folder: str = Field(..., description='The project path on the RPI.')
-
-    @computed_field
-    @cached_property
-    def local_project_path(self) -> Path:
-        return (Path(__file__).parent / '..' / '..' / self.project_directory).resolve()
-
-    @computed_field
-    @cached_property
-    def rpi_settings(self) -> _RpiSettings:
-        rpi_settings_file_path = self.local_project_path / RPI_SETTINGS_FILE
-
-        settings = {}
-        with rpi_settings_file_path.open('r', encoding='utf-8') as f:
-            contents = f.read()
-        for file_line in contents.splitlines():
-            line = file_line.strip()
-            if not line or line.startswith("#"):
-                continue
-            if ':=' in line:
-                key, value = line.split(':=', 1)
-                settings[key.strip().lower()] = value.strip()
-        settings['tmux_log_file_pattern'] = settings['tmux_log_file_pattern'].format(
-            session_name=settings['tmux_session_name'],
-            timestamp=r'{timestamp}',
-        )
-        return _RpiSettings(**settings)
+    rpi_settings: _RpiSettings = Field(..., description='Setting for the application to be located on RPI.')
 
 
 @dataclass
@@ -120,7 +99,7 @@ def rpi_run(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
 
 
 def _rpi_tmux_get_log_file_path(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> str | None:
-    log_files_search_pattern = config.rpi_settings.tmux_log_file_pattern.format(timestamp='*')
+    log_files_search_pattern = config.rpi_settings.tmux_log_path_pattern.format(timestamp='*')
     _stdin, stdout, stderr = ssh_client.client.exec_command(f'ls {log_files_search_pattern}')
     status = stdout.channel.recv_exit_status()
     if status:
@@ -134,21 +113,15 @@ def _rpi_tmux_get_log_file_path(ssh_client: SshClient, config: RpiRemoteToolsCon
     return log_files[-1]
 
 
-def rpi_tmux(
-        ssh_client: SshClient,
-        process_name: str,
-        config: RpiRemoteToolsConfig,
-        *,
-        restart_application: bool = False,
-) -> None:
-    """Open tmux session on RPI.
+def rpi_tmux_terminal_output(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
+    # """Open tmux session on RPI.
 
-    If restart_application is True, the application will be started in the tmux session.
+    # If restart_application is True, the application will be started in the tmux session.
 
-    Raises:
-        StartRpiTmuxError: If tmux session could not be started.
+    # Raises:
+    #     StartRpiTmuxError: If tmux session could not be started.
 
-    """
+    # """
     tmux_log_file_path = _rpi_tmux_get_log_file_path(ssh_client, config)
     if not tmux_log_file_path:
         print('No log file found on rpi')
@@ -192,7 +165,7 @@ def rpi_tmux(
     _tmux_terminal(ssh_client, process_name, tmux_log_file_path, config, restart_application=restart_application)
 
 
-def _tmux_terminal(
+def _tmux_terminal_output(
         ssh_client: SshClient, process_name: str,
         tmux_log_file_path: str,
         config: RpiRemoteToolsConfig,
@@ -291,6 +264,24 @@ def _get_configurations(configurations_content: str, remote_username: str) -> Rp
         error_msg = f'Error decoding configurations as JSON:\n{configurations_content}\n'
         raise ValueError(error_msg) from exception
     config_data['remote_project_folder'] = f'/home/{remote_username}/{config_data['project_directory']}'
+    local_project_path = (Path(__file__).parent / '..' / '..' / config_data['project_directory']).resolve()
+    config_data['local_project_path'] = local_project_path
+
+    rpi_settings_file_path = local_project_path / RPI_SETTINGS_FILE
+    if not Path(rpi_settings_file_path).exists():
+        error = f'Settings file not found: {rpi_settings_file_path}'
+        raise FileNotFoundError(error)
+    settings_data = configparser.ConfigParser()
+    settings_data.read(rpi_settings_file_path)
+    settings = {}
+    settings['application_script'] = settings_data[RPI_SETTINGS_APPLICATION_KEYWORD]['script']
+    settings['tmux_session_name'] = session_name = settings_data[RPI_SETTINGS_TMUX_KEYWORD]['session_name']
+    settings['tmux_log_path_pattern'] = settings_data[RPI_SETTINGS_TMUX_KEYWORD]['log_path_pattern'].format(
+        session_name=session_name,
+        timestamp=r'{timestamp}',
+    )
+    config_data['rpi_settings'] = _RpiSettings(**settings)
+
     return RpiRemoteToolsConfig(**config_data)
 
 
@@ -335,7 +326,6 @@ def main() -> None:
 
     with SshClientHandler(RPI_HOST_CONFIG_FILE) as ssh_client:
         config = _get_configurations(args.configurations, ssh_client.username)
-        rpi_application_process_name = f'python3 {config.rpi_settings.application_script}'
         if args.rpi_check_app:
             rpi_application_process_ids(ssh_client, config)
         elif args.rpi_kill_app:
@@ -343,7 +333,7 @@ def main() -> None:
         elif args.rpi_run_app:
             rpi_run(ssh_client, config)
         elif args.rpi_tmux:
-            rpi_tmux(ssh_client, rpi_application_process_name, config)
+            rpi_tmux_terminal_output(ssh_client, config)
         elif args.rpi_copy_code:
             rpi_upload_app_files(ssh_client, config)
             # rpi_stop_application(ssh_client, config)
