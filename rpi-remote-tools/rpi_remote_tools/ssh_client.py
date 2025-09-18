@@ -72,8 +72,6 @@ class SshClient:
 
         def _upload_file(local_file: Path, remote_file: PurePosixPath, local_mtime: float) -> None:
             self._sftp.put(str(local_file), str(remote_file))
-            if str(remote_file).endswith('.sh'):
-                self._sftp.chmod(str(remote_file), 0o755)
             self._sftp.utime(str(remote_file), (local_mtime, local_mtime))
 
         self._delete_extra_remote_files(local_dir, remote_dir, exclude)

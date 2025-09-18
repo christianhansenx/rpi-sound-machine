@@ -1,11 +1,10 @@
-#!/usr/bin/env python3
 """Raspberry Pi uninstallation script."""
 import argparse
 import sys
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from device_tool_box import SERVICE_FILE_NAME, InstallerTools
+from rpi_sound_machine.cli_tool_box import SERVICE_FILE_NAME, InstallerTools
 
 
 class UninstallError(Exception):

@@ -4,6 +4,10 @@
 
 - create issues in github
 - continue current play after reboot
+- scli command<br>
+  create a symbolic link (symlink) to your script in a directory already in your PATH, like /usr/local/bin.<br>
+  sudo ln -s /path/to/your_script.py /usr/local/bin/cli<br>
+  This command creates a link named cli in /usr/local/bin that points to your script. Now, you can run cli from any directory.<br>
 - setting up github to run test at pull request
 - refactor and document install and uninstall items (also implement --exclude (add apt_get_update as item)), get Killsignal enums
 - tools check to check system service and tmux session and tmux log.

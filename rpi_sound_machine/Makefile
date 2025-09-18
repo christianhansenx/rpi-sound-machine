@@ -5,22 +5,22 @@ no_arguments:
 
 install:
 	@echo "Installing applications and restarting application service."
-	@python device_tool.py -y -i --stop-application --restart-service
+	@python cli.py -y -i --stop-application --restart-service
 
 process-id:
-	python device_tool.py --get-application-process-ids
+	python cli.py --get-application-process-ids
 
 stop:
-	python device_tool.py --stop-application
+	python cli.py --stop-application
 
 kill-tmux:
-	python device_tool.py --kill-tmux
+	python cli.py --kill-tmux
 
 restart-service:
-	python device_tool.py --restart-service
+	python cli.py --restart-service
 
 run:
-	python device_tool.py --run-application
+	python cli.py --run-application
 
 reboot:
 	@echo "Rebooting device."

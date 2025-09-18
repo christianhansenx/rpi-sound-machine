@@ -10,8 +10,6 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 SETTINGS_FILE = 'settings.ini'
-SETTINGS_APPLICATION_KEYWORD = 'application'
-SETTINGS_TMUX_KEYWORD = 'tmux'
 LOCAL_SERVICE_DIRECTORY = Path(__file__).parent / 'system-service'
 SERVICE_STOP_SERVICE_TIME_OUT = 15.0
 TEMPORARY_MAKEFILE_SETTINGS_FILE = '/tmp/makefile_settings.mk'  # noqa: S108 Probable insecure usage of temporary file
@@ -86,12 +84,12 @@ class Settings:
         if not Path(SETTINGS_FILE).exists():
             error = f'Settings file not found: {SETTINGS_FILE}'
             raise FileNotFoundError(error)
-        self._settings_data = configparser.ConfigParser()
-        self._settings_data.read(SETTINGS_FILE)
+        settings = configparser.ConfigParser()
+        settings.read(SETTINGS_FILE)
 
-        self.application_script = self._settings_data[SETTINGS_APPLICATION_KEYWORD]['script']
-        self.service_name = self._settings_data[SETTINGS_APPLICATION_KEYWORD]['service_name']
-        self.service_name = self._settings_data[SETTINGS_APPLICATION_KEYWORD]['service_name']
+        for key, value in settings['settings'].items():
+            setattr(self, key, value)
+
         start_script_name = f'{self.service_name}-start.sh'
         service_file_name = f'{self.service_name}.service'
         self.local_service_file = LOCAL_SERVICE_DIRECTORY / service_file_name
@@ -102,8 +100,7 @@ class Settings:
         self.grep_process_name = f'[p]ython3 {self.application_script}'
         self.process_name = self.grep_process_name.replace('[p]', 'p')
 
-        self.tmux_session_name = self._settings_data[SETTINGS_TMUX_KEYWORD]['session_name']
-        tmux_log_path_pattern = self._settings_data[SETTINGS_TMUX_KEYWORD]['log_path_pattern'].format(
+        tmux_log_path_pattern = self.tmux_log_path_pattern.format(
             session_name=self.tmux_session_name,
             timestamp=r'{timestamp}',
         )

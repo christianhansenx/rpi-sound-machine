@@ -3,7 +3,9 @@ list-recipes:
     @just --list --unsorted
 
 RPI_REMOTE_TOOLS_CONFIGURATIONS := '{
-  "project_directory": "rpi_sound_machine"
+  "project_directory": "rpi_sound_machine",
+  "rpi_settings_file": "settings.ini",
+  "rpi_settings_key_word": "settings"
 }'
 RPI_REMOTE_TOOLS_PATH := "rpi-remote-tools"
 # Raspberry Pi Remote Tools recipes.

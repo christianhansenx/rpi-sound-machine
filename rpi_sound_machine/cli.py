@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Raspberry Pi device tool."""
 import argparse
 import sys
@@ -5,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from device_tool_box import ApplicationProcess, InstallerTools
+from cli_tool_box import ApplicationProcess, InstallerTools, settings
 
 
 class InstallError(Exception):
@@ -15,9 +16,9 @@ class InstallError(Exception):
 class Installer(InstallerTools):
     """Class installation."""
 
-    def __init__(self, *, skip_apt_get_update: bool = False) -> None:
+    def __init__(self, application_process: ApplicationProcess, *, skip_apt_get_update: bool = False) -> None:
         """Initialize installer tools."""
-        super().__init__(skip_apt_get_update=skip_apt_get_update)
+        super().__init__(application_process, skip_apt_get_update=skip_apt_get_update)
 
     @staticmethod
     def make_files_executable() -> None:
@@ -25,12 +26,15 @@ class Installer(InstallerTools):
 
         Traverses all directories from the current location and changes the
         permissions of all .sh files to be executable.
+        Also make selected python scripts executable.
         """
         app_root_path = Path(__file__).resolve().parent
-        print(f'Apply execute permission to sh files in: {app_root_path}')
+        print(f'Apply execute permission to selected files in: {app_root_path}')
         for filepath in app_root_path.rglob('*.sh'):
             if filepath.is_file():
                 filepath.chmod(0o755)
+        cli_path = Path(settings['developer_cli'])
+        cli_path.chmod(0o755)
 
     def install_tmux(self) -> None:
         if self.is_tmux_installed():
@@ -167,8 +171,6 @@ def main() -> None:
                 return
         print()
         installer.install(installable_items, installs_ordered)
-        if args.restart_service:
-            installer.restart_service()
     print()
 
 
