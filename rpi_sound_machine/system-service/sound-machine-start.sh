@@ -1,2 +1,4 @@
 #!/bin/bash
-~/rpi_sound_machine/run.sh
+
+#~/rpi_sound_machine/cli.py --starts-from-service
+uv run --project ~/rpi_sound_machine --no-group dev ~/rpi_sound_machine/sound_machine.py

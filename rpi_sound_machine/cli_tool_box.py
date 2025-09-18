@@ -15,12 +15,16 @@ SERVICE_STOP_SERVICE_TIME_OUT = 15.0
 TEMPORARY_MAKEFILE_SETTINGS_FILE = '/tmp/makefile_settings.mk'  # noqa: S108 Probable insecure usage of temporary file
 
 
-class KillRpiProcessError(Exception):
-    """Could not kill application on RPI."""
+class ServiceError(Exception):
+    """Could perform service request."""
 
 
-class KillRpiTmuxSessionError(Exception):
-    """Could not kill tmux session on RPI."""
+class ProcessKillError(Exception):
+    """Could not kill application."""
+
+
+class TmuxSessionKillError(Exception):
+    """Could not kill tmux session."""
 
 
 class KillSignals(enum.StrEnum):
@@ -81,20 +85,21 @@ class Settings:
             FileNotFoundError: if settings file was not found.
 
         """
-        if not Path(SETTINGS_FILE).exists():
-            error = f'Settings file not found: {SETTINGS_FILE}'
+        setting_path = Path(__file__).parent / SETTINGS_FILE
+        if not Path(setting_path).exists():
+            error = f'Settings file not found: {setting_path}'
             raise FileNotFoundError(error)
         settings = configparser.ConfigParser()
-        settings.read(SETTINGS_FILE)
+        settings.read(setting_path)
 
         for key, value in settings['settings'].items():
             setattr(self, key, value)
 
         start_script_name = f'{self.service_name}-start.sh'
-        service_file_name = f'{self.service_name}.service'
-        self.local_service_file = LOCAL_SERVICE_DIRECTORY / service_file_name
+        self.service_file_name = f'{self.service_name}.service'
+        self.local_service_file = LOCAL_SERVICE_DIRECTORY / self.service_file_name
         self.local_start_script = LOCAL_SERVICE_DIRECTORY / start_script_name
-        self.system_service_file = Path(f'/etc/systemd/system/{service_file_name}')
+        self.system_service_file = Path(f'/etc/systemd/system/{self.service_file_name}')
         self.system_start_script = Path(f'/usr/local/bin/{start_script_name}')
 
         self.grep_process_name = f'[p]ython3 {self.application_script}'
@@ -130,9 +135,9 @@ class ApplicationProcess:
         if _files_are_different(settings.local_service_file, settings.system_service_file):
             _run_command(f'sudo cp {settings.local_service_file} {settings.system_service_file}')
 
-        _run_command('sudo systemctl daemon-reload')
-        _run_command(f'sudo systemctl enable {settings.service_name}.service')
-        _run_command(f'sudo systemctl start {settings.service_name}.service')
+        self._service_request('sudo systemctl daemon-reload')
+        self._service_request(f'sudo systemctl enable {settings.service_file_name}')
+        self._service_request(f'sudo systemctl start {settings.service_file_name}')
 
         start_time = time.monotonic()
         while True:
@@ -141,6 +146,8 @@ class ApplicationProcess:
             if time.monotonic() - start_time > SERVICE_STOP_SERVICE_TIME_OUT:
                 break
             time.sleep(0.5)
+        result = _run_command(f'systemctl status {settings.service_file_name}')
+        print(result.stdout())
         self.is_service_active(raise_exception=True)
 
     def stop_service(self) -> None:
@@ -181,6 +188,15 @@ class ApplicationProcess:
         return result.stdout.strip() == 'active'
 
     @staticmethod
+    def _service_request(command: str) -> None:
+        try:
+            _run_command(command)
+        except subprocess.CalledProcessError as error:
+            status = _run_command(f'systemctl status {settings.service_file_name}', check=False).stdout
+            exception_error = f'failed on command: {command}\n{status}'
+            raise ServiceError(exception_error) from error
+
+    @staticmethod
     def get_application_ids(*, print_message: bool = True) -> list[str]:
         """Get all ID of all running application processes.
 
@@ -202,14 +218,14 @@ class ApplicationProcess:
         """Stop application on RPI.
 
         Raises:
-            KillRpiProcessError: If application could not get killed.
+            ProcessKillError: If application could not get killed.
 
         """
-        self.stop_service()
         if not (proc_ids := self.get_application_ids(print_message=False)):
             if msg_no_kill:
                 print('No running process found, nothing to kill')
             return
+        self.stop_service()
         print(f'Killing process "{settings.process_name}" with PID(s): {", ".join(proc_ids)}')
         kill_error = 'unknown error'
         for kill_signal in KillSignals:
@@ -221,13 +237,13 @@ class ApplicationProcess:
                             f'Failed to kill "{settings.process_name}" (PID {pid}) with {kill_signal.name}: '
                             f'{result.stderr.strip()}'
                         )
-                        raise KillRpiProcessError(error)
+                        raise ProcessKillError(error)
                     time.sleep(0.2)
             if not (kill_error := self._wait_processed_killed(kill_signal)):
                 break
 
         else:
-            raise KillRpiProcessError(kill_error)
+            raise ProcessKillError(kill_error)
         print(f'Successfully killed "{settings.process_name}" with {kill_signal.name}')
 
     @staticmethod
@@ -266,12 +282,12 @@ class ApplicationProcess:
     def kill_tmux_session(self, *, msg_no_kill: bool = True) -> None:
         if msg_no_kill:
             print(f'Killing tmux session: {settings.tmux_session_name}')
-        if self.is_tmux_active():
+        if self.is_tmux_active(raise_exception=False):
             self.stop_application(msg_no_kill=False)
             _run_command(f'tmux kill-session -t {settings.tmux_session_name}')
         if self.is_tmux_active():
             kill_error = f'Failed to kill tmux session: {settings.tmux_session_name}'
-            raise KillRpiTmuxSessionError(kill_error)
+            raise TmuxSessionKillError(kill_error)
         _run_command(f'rm -f {settings.tmux_log_path_search_pattern}', check=False, raise_std_error=True)
 
     @staticmethod

@@ -20,7 +20,7 @@ restart-service:
 	python cli.py --restart-service
 
 run:
-	python cli.py --run-application
+	python cli.py --run
 
 reboot:
 	@echo "Rebooting device."

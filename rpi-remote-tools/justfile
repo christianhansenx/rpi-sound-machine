@@ -13,6 +13,10 @@ check configurations="{}":
 kill configurations="{}":
     @just _rpi --rpi-kill-app '{{configurations}}'
 
+# Restarting application service on Raspberry Pi device
+start configurations="{}":
+    @just _rpi --rpi-restart-service '{{configurations}}'
+
 # Starting application on Raspberry Pi device (first it will kill already running app) 
 run configurations="{}":
     @just _rpi --rpi-run-app '{{configurations}}'

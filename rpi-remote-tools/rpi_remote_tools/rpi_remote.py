@@ -89,6 +89,11 @@ def rpi_stop_application(ssh_client: SshClient, config: RpiRemoteToolsConfig) ->
     rpi_command.command('make stop')
 
 
+def rpi_restart_service(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
+    rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
+    rpi_command.command('make restart-service')
+
+
 def rpi_run(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
     rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
     rpi_command.command('make run')
@@ -297,6 +302,11 @@ def main() -> None:
         help='Kill application on Raspberry Pi device',
     )
     parser.add_argument(
+        '--rpi-restart-service',
+        action='store_true',
+        help='Restart application service on Raspberry Pi device',
+    )
+    parser.add_argument(
         '--rpi-run-app',
         action='store_true',
         help='Run application on Raspberry Pi device',
@@ -326,6 +336,8 @@ def main() -> None:
             rpi_application_process_ids(ssh_client, config)
         elif args.rpi_kill_app:
             rpi_stop_application(ssh_client, config)
+        elif args.rpi_restart_service:
+            rpi_restart_service(ssh_client, config)
         elif args.rpi_run_app:
             rpi_run(ssh_client, config)
         elif args.rpi_tmux:

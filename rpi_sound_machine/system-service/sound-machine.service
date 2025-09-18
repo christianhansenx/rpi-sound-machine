@@ -1,18 +1,17 @@
 [Unit]
-Description=rpi-sound-machine service
+Description=sound-machine service
 After=network.target
 
-# This limits the service to 10 restarts within a 24-hour period.
 StartLimitBurst=10
 StartLimitIntervalSec=86400
 
 [Service]
 Type=forking
 User=pi
-ExecStart=/usr/local/bin/rpi-sound-machine-start.sh
-ExecStop=/usr/bin/tmux kill-session -t sound
+ExecStart=/usr/local/bin/sound-machine-start.sh
+#ExecStop=
 Restart=always
-RestartSec=5s
+RestartSec=10s
 
 [Install]
 WantedBy=multi-user.target

@@ -33,7 +33,7 @@ class Installer(InstallerTools):
         for filepath in app_root_path.rglob('*.sh'):
             if filepath.is_file():
                 filepath.chmod(0o755)
-        cli_path = Path(settings['developer_cli'])
+        cli_path = Path(settings.developer_cli)
         cli_path.chmod(0o755)
 
     def install_tmux(self) -> None:
@@ -112,9 +112,9 @@ def main() -> None:
         help='Killing application tmux session.',
     )
     parser.add_argument(
-        '--run-application',
+        '--run',
         action='store_true',
-        help='Start application in tmux session.',
+        help='Start application in tmux session. For developing purpose.',
     )
     parser.add_argument(
         '--restart-service',
@@ -145,7 +145,7 @@ def main() -> None:
         application_process.stop_application()
     if args.kill_tmux:
         application_process.kill_tmux_session()
-    if args.run_application:
+    if args.run:
         application_process.start_application_in_tmux_session()
     if args.restart_service:
         application_process.restart_service()
