@@ -104,6 +104,8 @@ class Settings:
 
         self.grep_process_name = f'[p]ython3 {self.application_script}'
         self.process_name = self.grep_process_name.replace('[p]', 'p')
+        self.grep_process_name = '[s]ound_machine'
+        self.process_name = self.application_script
 
         tmux_log_path_pattern = self.tmux_log_path_pattern.format(
             session_name=self.tmux_session_name,

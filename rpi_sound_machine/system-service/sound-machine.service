@@ -6,7 +6,7 @@ StartLimitBurst=10
 StartLimitIntervalSec=86400
 
 [Service]
-Type=forking
+Type=simple
 User=pi
 ExecStart=/usr/local/bin/sound-machine-start.sh
 #ExecStop=
