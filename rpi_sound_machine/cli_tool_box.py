@@ -35,6 +35,15 @@ class KillSignals(enum.StrEnum):
     SIGKILL = '-9'  # Force kill
 
 
+class ServiceStatus(enum.StrEnum):
+    """Status of service for application on RPI."""
+
+    ACTIVE = 'running'
+    ENABLED_INACTIVE = 'enabled (inactive)'
+    INACTIVE = 'inactive'
+    NOT_FOUND = 'removed'
+
+
 def _run_command(command: str, *, check: bool = True, raise_std_error: bool = True) -> subprocess.CompletedProcess:
     r"""Run a shell command.
 
@@ -102,11 +111,6 @@ class Settings:
         self.system_service_file = Path(f'/etc/systemd/system/{self.service_file_name}')
         self.system_start_script = Path(f'/usr/local/bin/{start_script_name}')
 
-        self.grep_process_name = f'[p]ython3 {self.application_script}'
-        self.process_name = self.grep_process_name.replace('[p]', 'p')
-        self.grep_process_name = '[s]ound_machine'
-        self.process_name = self.application_script
-
         tmux_log_path_pattern = self.tmux_log_path_pattern.format(
             session_name=self.tmux_session_name,
             timestamp=r'{timestamp}',
@@ -128,7 +132,7 @@ class ApplicationProcess:
 
     def restart_service(self) -> None:
         print(f'Restarting {settings.service_name}.service')
-        self.stop_service()
+        self.stop_application()  # Is also removing current application service (if exist)
 
         # Update system service files if local file are updated
         if _files_are_different(settings.local_start_script, settings.system_start_script):
@@ -166,7 +170,28 @@ class ApplicationProcess:
             time.sleep(0.5)
 
     @staticmethod
-    def remove_service() -> None:
+    def service_status() -> ServiceStatus:
+        result = _run_command(f'sudo systemctl status {settings.service_file_name}', check=False, raise_std_error=False)
+        if not result.returncode:
+            return ServiceStatus.ACTIVE
+        if 'service; enabled' in result.stdout:
+            return ServiceStatus.ENABLED_INACTIVE
+        if 'could not be found' in result.stderr:
+            return ServiceStatus.NOT_FOUND
+        return ServiceStatus.INACTIVE
+
+    def remove_service(self) -> None:
+        service_status = self.service_status()
+        print(service_status)
+        if service_status in {ServiceStatus.ACTIVE, ServiceStatus.ENABLED_INACTIVE}:
+            _run_command(f'sudo systemctl disable --now {settings.service_file_name}', check=False)
+            print(self.service_status())
+        exit()
+        #sudo systemctl stop my-service.service
+        #sudo systemctl disable my-service.service
+        #sudo rm /etc/systemd/system/my-service.service
+        #sudo systemctl daemon-reload
+        #systemctl status my-service.service -> service not found
         with suppress(subprocess.CalledProcessError):
             _run_command(f'sudo rm {settings.system_service_file}')
         _run_command('sudo systemctl daemon-reload')
@@ -206,14 +231,15 @@ class ApplicationProcess:
             list of running process id's
 
         """
-        result = _run_command(f'pgrep -f "{settings.grep_process_name}"', check=False)
+        grep_process_name = '[' + settings.application_script[0] + ']' + settings.application_script[1:]
+        result = _run_command(f'pgrep -f "{grep_process_name}"', check=False)
         proc_ids = result.stdout.split('\n')
         valid_proc_ids = [pid for pid in proc_ids if pid]
         if print_message:
             if valid_proc_ids:
-                print(f'Process "{settings.process_name}", running ID(s): {", ".join(valid_proc_ids)}')
+                print(f'Process "{settings.application_script}", running ID(s): {", ".join(valid_proc_ids)}')
             else:
-                print(f'Process "{settings.process_name}" is not running.')
+                print(f'Process "{settings.application_script}" is not running.')
         return valid_proc_ids
 
     def stop_application(self, *, msg_no_kill: bool = True) -> None:
@@ -223,12 +249,12 @@ class ApplicationProcess:
             ProcessKillError: If application could not get killed.
 
         """
+        self.remove_service()
         if not (proc_ids := self.get_application_ids(print_message=False)):
             if msg_no_kill:
                 print('No running process found, nothing to kill')
             return
-        self.stop_service()
-        print(f'Killing process "{settings.process_name}" with PID(s): {", ".join(proc_ids)}')
+        print(f'Killing process "{settings.application_script}" with PID(s): {", ".join(proc_ids)}')
         kill_error = 'unknown error'
         for kill_signal in KillSignals:
             for pid in proc_ids:
@@ -236,7 +262,7 @@ class ApplicationProcess:
                     result = _run_command(f'kill {kill_signal.value} {pid}', check=False, raise_std_error=False)
                     if result.returncode != 0:
                         error = (
-                            f'Failed to kill "{settings.process_name}" (PID {pid}) with {kill_signal.name}: '
+                            f'Failed to kill "{settings.application_script}" (PID {pid}) with {kill_signal.name}: '
                             f'{result.stderr.strip()}'
                         )
                         raise ProcessKillError(error)
@@ -246,7 +272,7 @@ class ApplicationProcess:
 
         else:
             raise ProcessKillError(kill_error)
-        print(f'Successfully killed "{settings.process_name}" with {kill_signal.name}')
+        print(f'Successfully killed "{settings.application_script}" with {kill_signal.name}')
 
     @staticmethod
     def _check_process_id(proc_id: str) -> bool:
@@ -263,7 +289,7 @@ class ApplicationProcess:
             if check_reties < 0:
                 kill_error = (
                     f'Failed to kill'
-                    f' "{settings.process_name}" with {kill_signal.name}, PID(s) still alive: {", ".join(proc_ids)}'
+                    f' "{settings.application_script}" with {kill_signal.name}, PID(s) still alive: {", ".join(proc_ids)}'
                 )
                 print(f'{kill_error}')
                 break
