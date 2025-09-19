@@ -11,7 +11,6 @@ from zoneinfo import ZoneInfo
 
 SETTINGS_FILE = 'settings.ini'
 LOCAL_SERVICE_DIRECTORY = Path(__file__).parent / 'system-service'
-SERVICE_STOP_SERVICE_TIME_OUT = 15.0
 TEMPORARY_MAKEFILE_SETTINGS_FILE = '/tmp/makefile_settings.mk'  # noqa: S108 Probable insecure usage of temporary file
 
 
@@ -108,8 +107,8 @@ class Settings:
         self.service_file_name = f'{self.service_name}.service'
         self.local_service_file = LOCAL_SERVICE_DIRECTORY / self.service_file_name
         self.local_start_script = LOCAL_SERVICE_DIRECTORY / start_script_name
-        self.system_service_file = Path(f'/etc/systemd/system/{self.service_file_name}')
-        self.system_start_script = Path(f'/usr/local/bin/{start_script_name}')
+        self.system_service_file_path = Path(f'/etc/systemd/system/{self.service_file_name}')
+        self.system_start_script_path = Path(f'/usr/local/bin/{start_script_name}')
 
         tmux_log_path_pattern = self.tmux_log_path_pattern.format(
             session_name=self.tmux_session_name,
@@ -130,98 +129,65 @@ class ApplicationProcess:
         """Initialize."""
         self._proc_ids = []
 
+    @staticmethod
+    def get_service_status() -> tuple[ServiceStatus, str]:
+        def _get_status_value(systemctl_status: subprocess.CompletedProcess) -> ServiceStatus:
+            if not systemctl_status.returncode:
+                return ServiceStatus.ACTIVE
+            if 'service; enabled' in systemctl_status.stdout:
+                return ServiceStatus.ENABLED_INACTIVE
+            if 'could not be found' in systemctl_status.stderr:
+                return ServiceStatus.NOT_FOUND
+            return ServiceStatus.INACTIVE
+
+        result = _run_command(f'sudo systemctl status {settings.service_file_name}', check=False, raise_std_error=False)
+        status = _get_status_value(result)
+        return status, result.stdout
+
+    def wait_service_status(self, expected_status: ServiceStatus, timeout: float = 5) -> None:
+        start_time = time.monotonic()
+        while True:
+            status, status_log = self.get_service_status()
+            if status == expected_status:
+                return
+            if time.monotonic() > start_time + timeout:
+                error = f'Unexpected service status. Expected: {expected_status}, Actual: {status}\n{status_log}'
+                raise ServiceError(error)
+            time.sleep(0.5)
+
     def restart_service(self) -> None:
         print(f'Restarting {settings.service_name}.service')
-        self.stop_application()  # Is also removing current application service (if exist)
+        self.remove_service()
+        self.start_service()
 
-        # Update system service files if local file are updated
-        if _files_are_different(settings.local_start_script, settings.system_start_script):
+    def start_service(self) -> None:
+        if _files_are_different(settings.local_start_script, settings.system_start_script_path):
             _run_command(f'sudo chmod +x {settings.local_start_script}')
-            _run_command(f'sudo cp {settings.local_start_script} {settings.system_start_script}')
-        if _files_are_different(settings.local_service_file, settings.system_service_file):
-            _run_command(f'sudo cp {settings.local_service_file} {settings.system_service_file}')
+            _run_command(f'sudo cp {settings.local_start_script} {settings.system_start_script_path}')
+        if _files_are_different(settings.local_service_file, settings.system_service_file_path):
+            _run_command(f'sudo cp {settings.local_service_file} {settings.system_service_file_path}')
 
-        self._service_request('sudo systemctl daemon-reload')
-        self._service_request(f'sudo systemctl enable {settings.service_file_name}')
-        self._service_request(f'sudo systemctl start {settings.service_file_name}')
-
-        start_time = time.monotonic()
-        while True:
-            if self.is_service_active(raise_exception=False):
-                return
-            if time.monotonic() - start_time > SERVICE_STOP_SERVICE_TIME_OUT:
-                break
-            time.sleep(0.5)
-        result = _run_command(f'systemctl status {settings.service_file_name}')
-        print(result.stdout())
-        self.is_service_active(raise_exception=True)
-
-    def stop_service(self) -> None:
-        if not self.is_service_active(raise_exception=False):
-            return
-        _run_command(f'sudo systemctl stop {settings.service_name}.service')
-        start_time = time.monotonic()
-        while True:
-            if not self.is_service_active(raise_exception=False):
-                return
-            if time.monotonic() - start_time > SERVICE_STOP_SERVICE_TIME_OUT:
-                error = f'Could not stop service {settings.service_name} within {SERVICE_STOP_SERVICE_TIME_OUT:.1f}s.'
-                raise RuntimeError(error)
-            time.sleep(0.5)
-
-    @staticmethod
-    def service_status() -> ServiceStatus:
-        result = _run_command(f'sudo systemctl status {settings.service_file_name}', check=False, raise_std_error=False)
-        if not result.returncode:
-            return ServiceStatus.ACTIVE
-        if 'service; enabled' in result.stdout:
-            return ServiceStatus.ENABLED_INACTIVE
-        if 'could not be found' in result.stderr:
-            return ServiceStatus.NOT_FOUND
-        return ServiceStatus.INACTIVE
+        _run_command(f'sudo systemctl enable {settings.service_file_name}', check=False, raise_std_error=False)
+        self.wait_service_status(ServiceStatus.ENABLED_INACTIVE)
+        _run_command(f'sudo systemctl start {settings.service_file_name}')
+        _run_command('sudo systemctl daemon-reload')
+        self.wait_service_status(ServiceStatus.ACTIVE)
 
     def remove_service(self) -> None:
-        service_status = self.service_status()
-        print(service_status)
-        if service_status in {ServiceStatus.ACTIVE, ServiceStatus.ENABLED_INACTIVE}:
-            _run_command(f'sudo systemctl disable --now {settings.service_file_name}', check=False)
-            print(self.service_status())
-        exit()
-        #sudo systemctl stop my-service.service
-        #sudo systemctl disable my-service.service
-        #sudo rm /etc/systemd/system/my-service.service
-        #sudo systemctl daemon-reload
-        #systemctl status my-service.service -> service not found
-        with suppress(subprocess.CalledProcessError):
-            _run_command(f'sudo rm {settings.system_service_file}')
+        def _remove_service_files() -> None:
+            if Path(settings.system_service_file_path).exists():
+                _run_command(f'sudo rm {settings.system_service_file_path}')
+            if Path(settings.system_start_script_path).exists():
+                _run_command(f'sudo rm {settings.system_start_script_path}')
+
+        service_status, _service_log = self.get_service_status()
+        if service_status not in {ServiceStatus.ACTIVE, ServiceStatus.ENABLED_INACTIVE}:
+            _remove_service_files()
+            return
+        _run_command(f'sudo systemctl disable --now {settings.service_file_name}', check=False, raise_std_error=False)
+        self.wait_service_status(ServiceStatus.INACTIVE)
+        _remove_service_files()
         _run_command('sudo systemctl daemon-reload')
-
-    @staticmethod
-    def is_service_active(*, raise_exception: bool = False) -> bool:
-        """Check if service is running.
-
-        Returns:
-            True if service is active, False otherwise.
-
-        """
-        command = f'systemctl is-active {settings.service_name}'
-        if raise_exception:
-            result = _run_command(command)
-        else:
-            try:
-                result = _run_command(command)
-            except subprocess.CalledProcessError:
-                return False
-        return result.stdout.strip() == 'active'
-
-    @staticmethod
-    def _service_request(command: str) -> None:
-        try:
-            _run_command(command)
-        except subprocess.CalledProcessError as error:
-            status = _run_command(f'systemctl status {settings.service_file_name}', check=False).stdout
-            exception_error = f'failed on command: {command}\n{status}'
-            raise ServiceError(exception_error) from error
 
     @staticmethod
     def get_application_ids(*, print_message: bool = True) -> list[str]:
@@ -250,10 +216,12 @@ class ApplicationProcess:
 
         """
         self.remove_service()
+
         if not (proc_ids := self.get_application_ids(print_message=False)):
             if msg_no_kill:
                 print('No running process found, nothing to kill')
             return
+
         print(f'Killing process "{settings.application_script}" with PID(s): {", ".join(proc_ids)}')
         kill_error = 'unknown error'
         for kill_signal in KillSignals:
@@ -269,9 +237,10 @@ class ApplicationProcess:
                     time.sleep(0.2)
             if not (kill_error := self._wait_processed_killed(kill_signal)):
                 break
-
         else:
-            raise ProcessKillError(kill_error)
+            error = f'Following PID(S) are still running: {self.get_application_ids(print_message=False)}'
+            raise ProcessKillError(error)
+
         print(f'Successfully killed "{settings.application_script}" with {kill_signal.name}')
 
     @staticmethod

@@ -288,8 +288,10 @@ def main() -> None:
     # Load volume on startup
     sound_control.load_volume()
 
-    app.run(host='0.0.0.0', port=5000, debug=False)  # noqa: S104 Possible binding to all interfaces
-
+    try:
+        app.run(host='0.0.0.0', port=5000, debug=False)  # noqa: S104 Possible binding to all interfaces
+    except:
+        app.run(host='0.0.0.0', port=5001, debug=False)  # noqa: S104 Possible binding to all interfaces
 
 if __name__ == '__main__':
     main()
