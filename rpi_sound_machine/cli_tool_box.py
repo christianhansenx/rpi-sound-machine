@@ -190,15 +190,37 @@ class ApplicationProcess:
         _run_command('sudo systemctl daemon-reload')
 
     @staticmethod
-    def get_application_ids(*, print_message: bool = True) -> list[str]:
+    def _get_process_table(selected_headers: list | None = None) -> list[dict[str, str]]:
+        all_app_proc = _run_command('TZ=UTC ps aux', check=False).stdout.split('\n')
+        header_line = all_app_proc[0]
+        headers = [header for header in header_line]
+        columns = len(headers)
+        proc_lines = all_app_proc[1:]
+        for proc_line in proc_lines:
+            proc_cells = proc_line.split(maxsplit=columns)
+            print(f'Process ID(s): {" ".join(proc_cells)}')
+
+    def _get_application_ids(self) -> list[dict[str, str]]:
+        app_proc_table = self._get_pro
+        header_line = all_app_proc[0]
+        headers = header_line
+        print(f'Process ID(s): {", ".join(proc_cells)}')
+
+    def get_application_ids(self, *, print_message: bool = True) -> list[str]:
         """Get all ID of all running application processes.
 
         Returns:
             list of running process id's
 
         """
-        grep_process_name = '[' + settings.application_script[0] + ']' + settings.application_script[1:]
-        result = _run_command(f'pgrep -f "{grep_process_name}"', check=False)
+        proc_id_lines = _get_process_table
+        exit()
+        all_app_proc = _run_command(f'TZ=UTC ps aux | grep {settings.application_script}x', check=False).stdout.split('\n')
+        proc_id_lines = [line for line in all_app_proc if all_app_proc]
+        if proc_id_lines:
+            print(f'Process "{settings.application_script}", running ID(s): {", ".join(proc_id_lines)}')
+        else:
+            print(f'Process "{settings.application_script}" is not running.')
         proc_ids = result.stdout.split('\n')
         valid_proc_ids = [pid for pid in proc_ids if pid]
         if print_message:
