@@ -4,7 +4,6 @@ import enum
 import filecmp
 import subprocess  # noqa: S404 `subprocess` module is possibly insecure
 import time
-from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -190,30 +189,42 @@ class ApplicationProcess:
         _run_command('sudo systemctl daemon-reload')
 
     @staticmethod
-    def _get_process_table(selected_headers: list | None = None) -> list[dict[str, str]]:
-        all_app_proc = _run_command('TZ=UTC ps aux', check=False).stdout.split('\n')
-        header_line = all_app_proc[0]
-        headers = [header for header in header_line]
-        columns = len(headers)
-        proc_lines = all_app_proc[1:]
-        for proc_line in proc_lines:
-            proc_cells = proc_line.split(maxsplit=columns)
-            print(f'Process ID(s): {" ".join(proc_cells)}')
-
-    def _get_application_ids(self) -> list[dict[str, str]]:
-        app_proc_table = self._get_pro
-        header_line = all_app_proc[0]
-        headers = header_line
-        print(f'Process ID(s): {", ".join(proc_cells)}')
-
-    def get_application_ids(self, *, print_message: bool = True) -> list[str]:
+    def _get_process_table(process: str) -> tuple[list[str], list[dict[str, str]]]:
         """Get all ID of all running application processes.
 
         Returns:
-            list of running process id's
+            List of running application process id's as text list and dict table.
 
         """
-        proc_id_lines = _get_process_table
+        result = _run_command('TZ=UTC ps aux', check=False)
+        all_app_proc_output = result.stdout.split('\n')
+        header_line = all_app_proc_output[0]
+        headers = header_line.split()
+        columns = len(headers) - 1
+        proc_lines = all_app_proc_output[1:-1]  # First line is the header and last line is empty
+        proc_table = []
+        proc_output_print_lines = [header_line]
+        for proc_line in proc_lines:
+            proc_cells = proc_line.split(maxsplit=columns)
+            proc_table_line = dict(zip(headers, proc_cells, strict=True))
+            if process in proc_table_line['COMMAND']:
+                proc_table.append(proc_table_line)
+                proc_output_print_lines.append(proc_line)
+        return proc_output_print_lines, proc_table
+
+    def get_application_ids(self, *, print_message: bool = True) -> list[str]:
+        printout, proc_table = self._get_process_table(settings.application_script)
+        if proc_table:
+            print(f'Running processes of {settings.application_script}:')
+            for output_line in printout:
+                print(output_line)
+        else:
+            print(f'Process {settings.application_script} is not running.')
+            return []
+
+        application_processes = [proc for proc in proc_table if 'astral-uv'not in proc['COMMAND']]
+        print(application_processes)
+
         exit()
         all_app_proc = _run_command(f'TZ=UTC ps aux | grep {settings.application_script}x', check=False).stdout.split('\n')
         proc_id_lines = [line for line in all_app_proc if all_app_proc]
