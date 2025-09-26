@@ -4,6 +4,7 @@
 
 - create issues in github
 - continue current play after reboot
+- log to journal when start
 - scli command<br>
   create a symbolic link (symlink) to your script in a directory already in your PATH, like /usr/local/bin.<br>
   sudo ln -s /path/to/your_script.py /usr/local/bin/cli<br>

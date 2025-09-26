@@ -1,4 +1,4 @@
-.PHONY: no_arguments install process-id stop kill-tmux restart-service run reboot
+.PHONY: no_arguments install process-id stop kill-tmux remove-service start-service restart-service run reboot
 
 no_arguments:
 	@echo "Missing argument. Arguments: install | process-id | stop | kill-tmux | restart-service | run | reboot"
@@ -15,6 +15,12 @@ stop:
 
 kill-tmux:
 	python cli.py --kill-tmux
+
+remove-service:
+	python cli.py --remove-service
+
+start-service:
+	python cli.py --start-service
 
 restart-service:
 	python cli.py --restart-service

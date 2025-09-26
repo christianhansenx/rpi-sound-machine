@@ -131,7 +131,7 @@ class ApplicationProcess:
     @staticmethod
     def get_service_status() -> tuple[ServiceStatus, str]:
         def _get_status_value(systemctl_status: subprocess.CompletedProcess) -> ServiceStatus:
-            if not systemctl_status.returncode:
+            if systemctl_status.returncode == 0:
                 return ServiceStatus.ACTIVE
             if 'service; enabled' in systemctl_status.stdout:
                 return ServiceStatus.ENABLED_INACTIVE
@@ -156,10 +156,13 @@ class ApplicationProcess:
 
     def restart_service(self) -> None:
         print(f'Restarting {settings.service_name}.service')
-        self.remove_service()
+        self.remove_service(show_no_service_to_remove_msg=False)
+        self.stop_application(msg_no_kill=False)
         self.start_service()
 
-    def start_service(self) -> None:
+    def start_service(self, *, show_start_msg: bool = True) -> None:
+        if show_start_msg:
+            print(f'Starting service {settings.service_file_name}')
         if _files_are_different(settings.local_start_script, settings.system_start_script_path):
             _run_command(f'sudo chmod +x {settings.local_start_script}')
             _run_command(f'sudo cp {settings.local_start_script} {settings.system_start_script_path}')
@@ -172,7 +175,7 @@ class ApplicationProcess:
         _run_command('sudo systemctl daemon-reload')
         self.wait_service_status(ServiceStatus.ACTIVE)
 
-    def remove_service(self) -> None:
+    def remove_service(self, *, show_no_service_to_remove_msg: bool = True) -> None:
         def _remove_service_files() -> None:
             if Path(settings.system_service_file_path).exists():
                 _run_command(f'sudo rm {settings.system_service_file_path}')
@@ -181,8 +184,11 @@ class ApplicationProcess:
 
         service_status, _service_log = self.get_service_status()
         if service_status not in {ServiceStatus.ACTIVE, ServiceStatus.ENABLED_INACTIVE}:
+            if show_no_service_to_remove_msg:
+                print(f'No service {settings.service_file_name} to remove')
             _remove_service_files()
             return
+        print(f'Removing service {settings.service_file_name}')
         _run_command(f'sudo systemctl disable --now {settings.service_file_name}', check=False, raise_std_error=False)
         self.wait_service_status(ServiceStatus.INACTIVE)
         _remove_service_files()
@@ -193,7 +199,7 @@ class ApplicationProcess:
         """Get all ID of all running application processes.
 
         Returns:
-            List of running application process id's as text list and dict table.
+            List of running application process id's as row text list and dict table.
 
         """
         result = _run_command('TZ=UTC ps aux', check=False)
@@ -210,36 +216,21 @@ class ApplicationProcess:
             if process in proc_table_line['COMMAND']:
                 proc_table.append(proc_table_line)
                 proc_output_print_lines.append(proc_line)
+        if not proc_table:
+            proc_output_print_lines = []
         return proc_output_print_lines, proc_table
 
-    def get_application_ids(self, *, print_message: bool = True) -> list[str]:
-        printout, proc_table = self._get_process_table(settings.application_script)
+    def get_application_ids_table(self, *, print_message: bool = True) -> tuple[list[str], list[dict[str, str]]]:
+        table_rows, proc_table = self._get_process_table(settings.application_script)
         if proc_table:
-            print(f'Running processes of {settings.application_script}:')
-            for output_line in printout:
-                print(output_line)
+            printout = f'Running processes of {settings.application_script}:'
+            for output_line in table_rows:
+                printout += '\n  ' + output_line
         else:
-            print(f'Process {settings.application_script} is not running.')
-            return []
-
-        application_processes = [proc for proc in proc_table if 'astral-uv'not in proc['COMMAND']]
-        print(application_processes)
-
-        exit()
-        all_app_proc = _run_command(f'TZ=UTC ps aux | grep {settings.application_script}x', check=False).stdout.split('\n')
-        proc_id_lines = [line for line in all_app_proc if all_app_proc]
-        if proc_id_lines:
-            print(f'Process "{settings.application_script}", running ID(s): {", ".join(proc_id_lines)}')
-        else:
-            print(f'Process "{settings.application_script}" is not running.')
-        proc_ids = result.stdout.split('\n')
-        valid_proc_ids = [pid for pid in proc_ids if pid]
+            printout = f'Process {settings.application_script} is not running.'
         if print_message:
-            if valid_proc_ids:
-                print(f'Process "{settings.application_script}", running ID(s): {", ".join(valid_proc_ids)}')
-            else:
-                print(f'Process "{settings.application_script}" is not running.')
-        return valid_proc_ids
+            print(printout)
+        return printout, proc_table
 
     def stop_application(self, *, msg_no_kill: bool = True) -> None:
         """Stop application on RPI.
@@ -248,55 +239,56 @@ class ApplicationProcess:
             ProcessKillError: If application could not get killed.
 
         """
-        self.remove_service()
-
-        if not (proc_ids := self.get_application_ids(print_message=False)):
+        printout, proc_table = self.get_application_ids_table(print_message=False)
+        if not proc_table:
             if msg_no_kill:
                 print('No running process found, nothing to kill')
             return
 
-        print(f'Killing process "{settings.application_script}" with PID(s): {", ".join(proc_ids)}')
-        kill_error = 'unknown error'
-        for kill_signal in KillSignals:
-            for pid in proc_ids:
-                if self._check_process_id(pid):
-                    result = _run_command(f'kill {kill_signal.value} {pid}', check=False, raise_std_error=False)
-                    if result.returncode != 0:
-                        error = (
-                            f'Failed to kill "{settings.application_script}" (PID {pid}) with {kill_signal.name}: '
-                            f'{result.stderr.strip()}'
-                        )
-                        raise ProcessKillError(error)
-                    time.sleep(0.2)
-            if not (kill_error := self._wait_processed_killed(kill_signal)):
-                break
-        else:
-            error = f'Following PID(S) are still running: {self.get_application_ids(print_message=False)}'
-            raise ProcessKillError(error)
+        print(printout)
+        app_pid_filter = '.venv/bin/python3'
+        if not (proc_kill_list := [pid['PID'] for pid in proc_table if app_pid_filter in pid['COMMAND']]):
+            error_message = f'There were no PIDs matching the pattern "{app_pid_filter}...{settings.application_script}"'
+            raise ProcessKillError(error_message)
 
-        print(f'Successfully killed "{settings.application_script}" with {kill_signal.name}')
+        print(f'Killing process "{app_pid_filter}...{settings.application_script}". PID(s): {", ".join(proc_kill_list)}')
+        self._stop_application(proc_kill_list)
 
+        printout, proc_table = self.get_application_ids_table(print_message=False)
+        if proc_table:
+            error_message = f'Still active PID(s)\n{printout}'
+            raise ProcessKillError(error_message)
+ 
     @staticmethod
-    def _check_process_id(proc_id: str) -> bool:
-        result = _run_command(f'ps -p {proc_id}', check=False)
-        return result.returncode == 0
+    def _stop_application(proc_kill_list: list) -> None:
+        """Stop application on RPI.
 
-    def _wait_processed_killed(self, kill_signal: KillSignals) -> str | None:
-        kill_error = None
-        check_reties = 10
-        while True:
-            if not (proc_ids := self.get_application_ids(print_message=False)):
-                break
-            check_reties -= 1
-            if check_reties < 0:
-                kill_error = (
-                    f'Failed to kill'
-                    f' "{settings.application_script}" with {kill_signal.name}, PID(s) still alive: {", ".join(proc_ids)}'
-                )
-                print(f'{kill_error}')
-                break
-            time.sleep(0.2)
-        return kill_error
+        Raises:
+            ProcessKillError: If application could not get killed.
+
+        """
+        for pid in proc_kill_list:
+            for kill_signal in KillSignals:
+                error = f'Failed to kill "{settings.application_script}" (PID {pid}) with {kill_signal.name}: '
+                result = _run_command(f'kill {kill_signal.value} {pid}', check=False, raise_std_error=False)
+                if result.returncode != 0:
+                    error_message = f'{error}: {result.stderr.strip()}'
+                    raise ProcessKillError(error_message)
+                check_reties = 10
+                while True:
+                    time.sleep(0.2)
+                    result = _run_command(f'ps -p {pid}', check=False)
+                    if result.returncode != 0:
+                        error = ''
+                        break
+                    check_reties -= 1
+                    if check_reties < 0:
+                        break
+                if not error:
+                    break
+            if error:
+                raise ProcessKillError(error)
+            print(f'Successfully killed PID {pid} with {kill_signal.name}')
 
     def start_application_in_tmux_session(self) -> None:
         print(f'Starting application "{settings.application_script}" in tmux session: {settings.tmux_session_name}')
@@ -328,7 +320,7 @@ class ApplicationProcess:
             True if tmux session is active, False otherwise.
 
         """
-        if _run_command('tmux ls', check=False, raise_std_error=False).returncode:
+        if _run_command('tmux ls', check=False, raise_std_error=False).returncode != 0:
             return False
         command = f'tmux has-session -t {settings.tmux_session_name}'
         if raise_exception:
@@ -338,7 +330,7 @@ class ApplicationProcess:
                 result = _run_command(command)
             except subprocess.CalledProcessError:
                 return False
-        return not result.returncode
+        return result.returncode == 0
 
 
 class InstallerTools:
