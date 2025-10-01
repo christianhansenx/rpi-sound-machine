@@ -107,6 +107,11 @@ def main() -> None:
         help='Stopping running application process and its system service.',
     )
     parser.add_argument(
+        '--tmux',
+        action='store_true',
+        help='Open tmux session.',
+    )
+    parser.add_argument(
         '--kill-tmux',
         action='store_true',
         help='Killing application tmux session.',
@@ -153,6 +158,8 @@ def main() -> None:
         application_process.check()
     if args.stop_application:
         application_process.stop_application()
+    if args.tmux:
+        application_process.tmux()
     if args.kill_tmux:
         application_process.kill_tmux_session()
     if args.run:

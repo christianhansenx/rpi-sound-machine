@@ -4,6 +4,7 @@ import enum
 import filecmp
 import subprocess  # noqa: S404 `subprocess` module is possibly insecure
 import time
+from contextlib import suppress
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -39,7 +40,7 @@ class ServiceStatus(enum.StrEnum):
     ACTIVE = 'running'
     ENABLED_INACTIVE = 'enabled (inactive)'
     INACTIVE = 'inactive'
-    NOT_FOUND = 'removed'
+    NOT_FOUND = 'not found'
 
 
 def _run_command(command: str, *, check: bool = True, raise_std_error: bool = True) -> subprocess.CompletedProcess:
@@ -139,7 +140,7 @@ class ApplicationProcess:
                 return ServiceStatus.NOT_FOUND
             return ServiceStatus.INACTIVE
 
-        result = _run_command(f'sudo systemctl status {settings.service_file_name}', check=False, raise_std_error=False)
+        result = _run_command(f'TZ=UTC systemctl status {settings.service_file_name}', check=False, raise_std_error=False)
         status = _get_status_value(result)
         return status, result.stdout
 
@@ -158,6 +159,7 @@ class ApplicationProcess:
         print(f'Restarting {settings.service_name}.service')
         self.remove_service(show_no_service_to_remove_msg=False)
         self.stop_application(msg_no_kill=False)
+        self.kill_tmux_session()
         self.start_service()
 
     def start_service(self, *, show_start_msg: bool = True) -> None:
@@ -233,9 +235,11 @@ class ApplicationProcess:
         return printout, proc_table
 
     def check(self) -> None:
-        service_status, status_log = self.get_service_status()
-        print(f'Service status: {service_status}\n{status_log}')
+        service_status, status_log_lines = self.get_service_status()
+        status_log = '\n' + status_log_lines if status_log_lines else ''
+        print(f'Service status: {service_status}{status_log}')
         self.get_application_ids_table()
+        self.is_tmux_active(raise_exception=False)
 
     def stop_application(self, *, msg_no_kill: bool = True) -> None:
         """Stop application on RPI.
@@ -301,25 +305,30 @@ class ApplicationProcess:
         self.kill_tmux_session(msg_no_kill=False)
         _run_command(f'tmux new-session -d -s {settings.tmux_session_name}')
         _run_command(f'tmux pipe-pane -t {settings.tmux_session_name}:0.0 -o "cat >> {settings.tmux_log_path}"')
-        _run_command(
-            f'tmux send-keys -t {settings.tmux_session_name}:0.0 "uv run --no-group dev {settings.application_script}" C-m',
-        )
+        app_run_command = f'uv run --no-group dev {settings.application_script}'
+        _run_command(f'tmux send-keys -t {settings.tmux_session_name}:0.0 "{app_run_command}" C-m')
         print(f'tmux log file: {settings.tmux_log_path}')
-        print(f'TO ENTER TMUX TERMINAL: tmux attach -t {settings.tmux_session_name}')
+        print('TO ENTER TMUX TERMINAL ON DEVICE: make tmux')
 
-    def kill_tmux_session(self, *, msg_no_kill: bool = True) -> None:
-        if msg_no_kill:
+    def tmux(self) -> None:
+        if not self.is_tmux_active(raise_exception=False):
+            print(f'\nThere is no tmux session for {settings.tmux_session_name}!\n')
+        _run_command(f'tmux attach -t {settings.tmux_session_name}')
+
+    def kill_tmux_session(self, *, msg_no_kill: bool = True, delete_files: bool = True) -> None:
+        if not (status := self.is_tmux_active(raise_exception=False, print_status=msg_no_kill)):
+            return
+        if msg_no_kill: 
             print(f'Killing tmux session: {settings.tmux_session_name}')
-        if self.is_tmux_active(raise_exception=False):
-            self.stop_application(msg_no_kill=False)
-            _run_command(f'tmux kill-session -t {settings.tmux_session_name}')
-        if self.is_tmux_active():
+        _run_command(f'tmux kill-session -t {settings.tmux_session_name}')
+        if self.is_tmux_active(print_status=False):
             kill_error = f'Failed to kill tmux session: {settings.tmux_session_name}'
             raise TmuxSessionKillError(kill_error)
-        _run_command(f'rm -f {settings.tmux_log_path_search_pattern}', check=False, raise_std_error=True)
+        if delete_files:
+            _run_command(f'rm -f {settings.tmux_log_path_search_pattern}', check=False, raise_std_error=True)
 
     @staticmethod
-    def is_tmux_active(*, raise_exception: bool = False) -> bool:
+    def is_tmux_active(*, raise_exception: bool = False, print_status: bool = True) -> bool:
         """Check if application tmux session is active.
 
         Returns:
@@ -327,16 +336,18 @@ class ApplicationProcess:
 
         """
         if _run_command('tmux ls', check=False, raise_std_error=False).returncode != 0:
-            return False
-        command = f'tmux has-session -t {settings.tmux_session_name}'
-        if raise_exception:
-            result = _run_command(command)
+            status = False
         else:
-            try:
+            command = f'tmux has-session -t {settings.tmux_session_name}'
+            if raise_exception:
                 result = _run_command(command)
-            except subprocess.CalledProcessError:
-                return False
-        return result.returncode == 0
+            else:
+                with suppress(subprocess.CalledProcessError):
+                    result = _run_command(command)
+            status = (result.returncode == 0)
+        if print_status:
+            print(f'Tmux session of {settings.tmux_session_name} status: {"Active" if status else "Does not exist"}')
+        return status
 
 
 class InstallerTools:

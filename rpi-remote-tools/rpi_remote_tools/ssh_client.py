@@ -41,7 +41,7 @@ class SshClient:
         # Use PurePosixPath for remote paths
         remote_dir = PurePosixPath(f'{remote_folder}')
 
-        print(f'Syncing {local_dir} to {self.connection}:{remote_dir}')
+        print(f'Syncing {local_dir} to {self.connection}: {remote_dir}')
         self._sftp = self.client.open_sftp()
 
         def _upload_dir(local_path: Path, remote_path: PurePosixPath) -> None:

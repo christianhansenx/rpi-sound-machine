@@ -25,13 +25,12 @@ restart:
 run:
 	python cli.py --run
 
+tmux:
+	python cli.py --tmux
+
 kill-tmux:
 	python cli.py --kill-tmux
 
 reboot:
 	@echo "Rebooting device."
 	@sudo reboot
-
-tmux:
-	@echo "tmux."
-	tmux attach -t sound

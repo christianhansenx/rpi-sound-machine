@@ -87,6 +87,7 @@ def rpi_check(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
 def rpi_stop_application(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
     rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
     rpi_command.command('make stop-app')
+    rpi_command.command('make kill-tmux')
 
 
 def rpi_stop(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
@@ -98,7 +99,6 @@ def rpi_stop(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
 def rpi_restart_service(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
     rpi_stop(ssh_client, config)
     rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
-    rpi_stop(ssh_client, config)
     rpi_command.command('make start')
 
 
@@ -215,7 +215,7 @@ def _tmux_terminal_streaming(
 ) -> None:
     tmux_session_msg = (
         f'\ntmux session "{config.tmux_session_name}" is running on {ssh_client.connection}, to access it from rpi terminal:'
-        f' tmux attach -t {config.tmux_session_name}'
+        f' tmux attach -t {config.tmux_session_name} (or "make tmux" from ~/{config.project_directory})'
     )
 
     # Set up user termination thread
