@@ -97,9 +97,9 @@ def main() -> None:
         help='User will not be asked to confirmation installation.',
     )
     parser.add_argument(
-        '--get-application-process-ids',
+        '--check',
         action='store_true',
-        help='Printing running application process IDs.',
+        help='Printing application process info.',
     )
     parser.add_argument(
         '--stop-application',
@@ -117,7 +117,7 @@ def main() -> None:
         help='Start application in tmux session. For developing purpose.',
     )
     parser.add_argument(
-        '--remove-service',
+        '--stop-service',
         action='store_true',
         help='Removing application system service.',
     )
@@ -149,15 +149,15 @@ def main() -> None:
     args = parser.parse_args()
 
     application_process = ApplicationProcess()
-    if args.get_application_process_ids:
-        application_process.get_application_ids_table()
+    if args.check:
+        application_process.check()
     if args.stop_application:
         application_process.stop_application()
     if args.kill_tmux:
         application_process.kill_tmux_session()
     if args.run:
         application_process.start_application_in_tmux_session()
-    if args.remove_service:
+    if args.stop_service:
         application_process.remove_service()
     if args.start_service:
         application_process.start_service()

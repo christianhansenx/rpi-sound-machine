@@ -1,5 +1,5 @@
 [Unit]
-Description=sound-machine service
+Description=Sound Machine
 After=network.target
 
 StartLimitBurst=10
@@ -11,7 +11,7 @@ User=pi
 ExecStart=/usr/local/bin/sound-machine-start.sh
 #ExecStop=
 Restart=always
-RestartSec=10s
+RestartSec=10
 
 [Install]
 WantedBy=multi-user.target

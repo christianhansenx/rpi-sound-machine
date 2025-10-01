@@ -7,19 +7,19 @@ list-recipes:
 
 # Checking about application is already running on Raspberry Pi device.
 check configurations="{}":
-    @just _rpi --rpi-check-app '{{configurations}}'
+    @just _rpi --rpi-check '{{configurations}}'
 
-# Killing running application on Raspberry Pi device
-kill configurations="{}":
-    @just _rpi --rpi-kill-app '{{configurations}}'
+# Stops running application on Raspberry Pi device (do not use when service is running)
+stop-app configurations="{}":
+    @just _rpi --rpi-stop-app '{{configurations}}'
 
-# Stop application and removing service on Raspberry Pi device
+# Removing service and stopping application on Raspberry Pi device
 stop configurations="{}":
     @just _rpi --rpi-stop '{{configurations}}'
 
 # Restarting application service on Raspberry Pi device
-start configurations="{}":
-    @just _rpi --rpi-restart-service '{{configurations}}'
+restart configurations="{}":
+    @just _rpi --rpi-restart '{{configurations}}'
 
 # Starting application on Raspberry Pi device (first it will kill already running app) 
 run configurations="{}":

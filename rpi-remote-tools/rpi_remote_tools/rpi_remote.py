@@ -79,26 +79,27 @@ class RpiCommand:
         print()
 
 
-def rpi_application_process_ids(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
+def rpi_check(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
     rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
-    rpi_command.command('make process-id')
-
-
-def rpi_stop(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
-    rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
-    rpi_command.command('make remove-service')
-    rpi_stop_application(ssh_client, config)
+    rpi_command.command('make check')
 
 
 def rpi_stop_application(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
     rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
+    rpi_command.command('make stop-app')
+
+
+def rpi_stop(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
+    rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
     rpi_command.command('make stop')
+    rpi_stop_application(ssh_client, config)
 
 
 def rpi_restart_service(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
     rpi_stop(ssh_client, config)
     rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
-    rpi_command.command('make start-service')
+    rpi_stop(ssh_client, config)
+    rpi_command.command('make start')
 
 
 def rpi_run(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
@@ -299,12 +300,12 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description='Raspberry Pi Remote Tools etc.')
     parser.add_argument(
-        '--rpi-check-app',
+        '--rpi-check',
         action='store_true',
         help='Check about logger application is already running on Raspberry Pi device',
     )
     parser.add_argument(
-        '--rpi-kill-app',
+        '--rpi-stop-app',
         action='store_true',
         help='Kill application on Raspberry Pi device',
     )
@@ -314,7 +315,7 @@ def main() -> None:
         help='Stop application and service on Raspberry Pi device',
     )
     parser.add_argument(
-        '--rpi-restart-service',
+        '--rpi-restart',
         action='store_true',
         help='Restart application service on Raspberry Pi device',
     )
@@ -344,13 +345,13 @@ def main() -> None:
 
     with SshClientHandler(RPI_HOST_CONFIG_FILE) as ssh_client:
         config = _get_configurations(args.configurations, ssh_client.username)
-        if args.rpi_check_app:
-            rpi_application_process_ids(ssh_client, config)
-        elif args.rpi_kill_app:
+        if args.rpi_check:
+            rpi_check(ssh_client, config)
+        elif args.rpi_stop_app:
             rpi_stop_application(ssh_client, config)
         elif args.rpi_stop:
             rpi_stop(ssh_client, config)
-        elif args.rpi_restart_service:
+        elif args.rpi_restart:
             rpi_restart_service(ssh_client, config)
         elif args.rpi_run_app:
             rpi_run(ssh_client, config)

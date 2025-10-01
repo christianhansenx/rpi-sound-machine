@@ -1,33 +1,37 @@
-.PHONY: no_arguments install process-id stop kill-tmux remove-service start-service restart-service run reboot
+.PHONY: no_arguments install check stop-app stop start restart run kill-tmux reboot
 
 no_arguments:
-	@echo "Missing argument. Arguments: install | process-id | stop | kill-tmux | restart-service | run | reboot"
+	@echo "Missing argument. Arguments: install | check | stop-app | stop | start | restart | run | kill-tmux | reboot"
 
 install:
 	@echo "Installing applications and restarting application service."
-	@python cli.py -y -i --stop-application --restart-service
+	@python cli.py -y -i --restart-service
 
-process-id:
-	python cli.py --get-application-process-ids
+check:
+	python cli.py --check
 
-stop:
+stop-app:
 	python cli.py --stop-application
 
-kill-tmux:
-	python cli.py --kill-tmux
+stop:
+	python cli.py --stop-service
 
-remove-service:
-	python cli.py --remove-service
-
-start-service:
+start:
 	python cli.py --start-service
 
-restart-service:
+restart:
 	python cli.py --restart-service
 
 run:
 	python cli.py --run
 
+kill-tmux:
+	python cli.py --kill-tmux
+
 reboot:
 	@echo "Rebooting device."
 	@sudo reboot
+
+tmux:
+	@echo "tmux."
+	tmux attach -t sound

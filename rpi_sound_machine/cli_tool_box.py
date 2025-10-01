@@ -232,6 +232,11 @@ class ApplicationProcess:
             print(printout)
         return printout, proc_table
 
+    def check(self) -> None:
+        service_status, status_log = self.get_service_status()
+        print(f'Service status: {service_status}\n{status_log}')
+        self.get_application_ids_table()
+
     def stop_application(self, *, msg_no_kill: bool = True) -> None:
         """Stop application on RPI.
 
@@ -269,7 +274,7 @@ class ApplicationProcess:
         """
         for pid in proc_kill_list:
             for kill_signal in KillSignals:
-                error = f'Failed to kill "{settings.application_script}" (PID {pid}) with {kill_signal.name}: '
+                error = f'Failed to kill "{settings.application_script}" (PID {pid}) with {kill_signal.name}'
                 result = _run_command(f'kill {kill_signal.value} {pid}', check=False, raise_std_error=False)
                 if result.returncode != 0:
                     error_message = f'{error}: {result.stderr.strip()}'
@@ -286,6 +291,7 @@ class ApplicationProcess:
                         break
                 if not error:
                     break
+                print(error)
             if error:
                 raise ProcessKillError(error)
             print(f'Successfully killed PID {pid} with {kill_signal.name}')
