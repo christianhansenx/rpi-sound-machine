@@ -157,9 +157,9 @@ class ApplicationProcess:
 
     def restart_service(self) -> None:
         print(f'Restarting {settings.service_name}.service')
-        self.remove_service(show_no_service_to_remove_msg=False)
         self.stop_application(msg_no_kill=False)
         self.kill_tmux_session()
+        self.remove_service(show_no_service_to_remove_msg=False)
         self.start_service()
 
     def start_service(self, *, show_start_msg: bool = True) -> None:
@@ -237,7 +237,7 @@ class ApplicationProcess:
     def check(self) -> None:
         service_status, status_log_lines = self.get_service_status()
         status_log = '\n' + status_log_lines if status_log_lines else ''
-        print(f'Service status: {service_status}{status_log}')
+        print(f'Service status for {settings.service_file_name}: {service_status}{status_log}')
         self.get_application_ids_table()
         self.is_tmux_active(raise_exception=False)
 
@@ -316,7 +316,7 @@ class ApplicationProcess:
         _run_command(f'tmux attach -t {settings.tmux_session_name}')
 
     def kill_tmux_session(self, *, msg_no_kill: bool = True, delete_files: bool = True) -> None:
-        if not (status := self.is_tmux_active(raise_exception=False, print_status=msg_no_kill)):
+        if not self.is_tmux_active(raise_exception=False, print_status=msg_no_kill):
             return
         if msg_no_kill: 
             print(f'Killing tmux session: {settings.tmux_session_name}')

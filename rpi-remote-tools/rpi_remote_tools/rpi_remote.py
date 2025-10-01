@@ -91,9 +91,9 @@ def rpi_stop_application(ssh_client: SshClient, config: RpiRemoteToolsConfig) ->
 
 
 def rpi_stop(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
+    rpi_stop_application(ssh_client, config)
     rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
     rpi_command.command('make stop')
-    rpi_stop_application(ssh_client, config)
 
 
 def rpi_restart_service(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
