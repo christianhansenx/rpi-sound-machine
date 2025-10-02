@@ -180,13 +180,11 @@ class ApplicationProcess:
     def restart_service(self) -> None:
         print(f'Restarting {settings.service_name}.service')
         self.stop_application(msg_no_kill=False)
-        self.kill_tmux_session()
+        self.kill_tmux_session(msg_no_kill=False)
         self.remove_service(show_no_service_to_remove_msg=False)
         self.start_service()
 
-    def start_service(self, *, show_start_msg: bool = True) -> None:
-        if show_start_msg:
-            print(f'Starting service {settings.service_file_name}')
+    def start_service(self) -> None:
         if _files_are_different(settings.local_start_script, settings.system_start_script_path):
             _run_command(f'sudo chmod +x {settings.local_start_script}')
             _run_command(f'sudo cp {settings.local_start_script} {settings.system_start_script_path}')
@@ -198,6 +196,7 @@ class ApplicationProcess:
         _run_command(f'sudo systemctl start {settings.service_file_name}')
         _run_command('sudo systemctl daemon-reload')
         self.wait_service_status(ServiceStatus.ACTIVE)
+        print(f'Service "{settings.service_file_name}" has been started successfully!')
 
     def remove_service(self, *, show_no_service_to_remove_msg: bool = True) -> None:
         def _remove_service_files() -> None:
@@ -209,7 +208,7 @@ class ApplicationProcess:
         service_status, _service_log = self.get_service_status()
         if service_status not in {ServiceStatus.ACTIVE, ServiceStatus.ENABLED_INACTIVE}:
             if show_no_service_to_remove_msg:
-                print(f'No service {settings.service_file_name} to remove')
+                print(f'There is no service "{settings.service_file_name}" to remove!')
             _remove_service_files()
             return
         print(f'Removing service {settings.service_file_name}')
@@ -247,7 +246,9 @@ class ApplicationProcess:
     def get_application_ids_table(self, *, print_message: bool = True) -> tuple[list[str], list[dict[str, str]]]:
         table_rows, proc_table = self._get_process_table(settings.application_script)
         if proc_table:
-            printout = f'{TerminalColors.STATUS_HEADER}Running processes of {settings.application_script}:{TerminalColors.RESET}'
+            printout = (
+                f'{TerminalColors.STATUS_HEADER}Running processes of "{settings.application_script}":{TerminalColors.RESET}'
+            )
             table_rows[0] = TerminalColors.PROCESS_TABLE_HEADER + table_rows[0] + TerminalColors.RESET
             for output_line in table_rows:
                 printout += '\n  ' + output_line
@@ -265,7 +266,7 @@ class ApplicationProcess:
         status_log_lines = status.strip().splitlines()[:max_lines]
         status_log = '\n  ' + '\n  '.join(status_log_lines) if status_log_lines else ''
         print(
-            f'{TerminalColors.STATUS_HEADER}System service "{settings.service_file_name} status":{TerminalColors.RESET}',
+            f'{TerminalColors.STATUS_HEADER}System service "{settings.service_file_name}" status:{TerminalColors.RESET}',
             f'{service_status}{status_log}',
         )
         self.get_application_ids_table()
@@ -281,7 +282,7 @@ class ApplicationProcess:
         printout, proc_table = self.get_application_ids_table(print_message=False)
         if not proc_table:
             if msg_no_kill:
-                print('No running process found, nothing to kill')
+                print(f'There is no running process "{settings.application_script}" found, nothing to kill!')
             return
 
         print(printout)
@@ -348,7 +349,7 @@ class ApplicationProcess:
     def kill_tmux_session(self, *, msg_no_kill: bool = True, delete_files: bool = True) -> None:
         if not self.is_tmux_active(raise_exception=False, print_status=False):
             if msg_no_kill:
-                print(f'There is no tmux session for {settings.tmux_session_name} to close!\n')
+                print(f'There is no tmux session for "{settings.tmux_session_name}" to close!\n')
             return
         if msg_no_kill:
             print(f'Killing tmux session: {settings.tmux_session_name}')
