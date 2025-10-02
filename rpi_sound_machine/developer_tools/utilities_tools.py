@@ -21,14 +21,19 @@ class TerminalColors:
     BOLD = '\033[1m'
 
     # Foreground Colors
+    BLACK = '\033[30m'  # Standard Black
     RED = '\033[31m'
     GREEN = '\033[32m'
     YELLOW = '\033[33m'
     BLUE = '\033[34m'
     CYAN = '\033[36m'
     BRIGHT_MAGENTA = '\033[95m'
+    DARK_GRAY = '\033[90m'
+    LIGHT_GRAY = '\033[97m'
+    WHITE = '\033[37m'
 
     STATUS_HEADER = BOLD + GREEN
+    PROCESS_TABLE_HEADER = BOLD
 
 
 class ServiceError(Exception):
@@ -243,12 +248,12 @@ class ApplicationProcess:
         table_rows, proc_table = self._get_process_table(settings.application_script)
         if proc_table:
             printout = f'{TerminalColors.STATUS_HEADER}Running processes of {settings.application_script}:{TerminalColors.RESET}'
+            table_rows[0] = TerminalColors.PROCESS_TABLE_HEADER + table_rows[0] + TerminalColors.RESET
             for output_line in table_rows:
                 printout += '\n  ' + output_line
         else:
             printout = (
-                f'{TerminalColors.STATUS_HEADER}Process {settings.application_script} is not running.'
-                f'{TerminalColors.RESET}'
+                f'{TerminalColors.STATUS_HEADER}Process "{settings.application_script}"{TerminalColors.RESET} is not running.'
             )
         if print_message:
             print(printout)
@@ -260,7 +265,7 @@ class ApplicationProcess:
         status_log_lines = status.strip().splitlines()[:max_lines]
         status_log = '\n  ' + '\n  '.join(status_log_lines) if status_log_lines else ''
         print(
-            f'{TerminalColors.STATUS_HEADER}Service status for {settings.service_file_name}:{TerminalColors.RESET} ',
+            f'{TerminalColors.STATUS_HEADER}System service "{settings.service_file_name} status":{TerminalColors.RESET}',
             f'{service_status}{status_log}',
         )
         self.get_application_ids_table()
@@ -374,7 +379,7 @@ class ApplicationProcess:
             status = (result.returncode == 0)
         if print_status:
             print(
-                f'{TerminalColors.STATUS_HEADER}Tmux session "{settings.tmux_session_name}":{TerminalColors.RESET} ',
+                f'{TerminalColors.STATUS_HEADER}Tmux session "{settings.tmux_session_name}":{TerminalColors.RESET}',
                 f'{"is active" if status else "session does not exist"}',
             )
         return status
