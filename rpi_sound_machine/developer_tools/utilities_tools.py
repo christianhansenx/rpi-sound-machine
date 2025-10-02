@@ -292,7 +292,7 @@ class ApplicationProcess:
         if proc_table:
             error_message = f'Still active PID(s)\n{printout}'
             raise ProcessKillError(error_message)
- 
+
     @staticmethod
     def _stop_application(proc_kill_list: list) -> None:
         """Stop application on RPI.
@@ -374,8 +374,8 @@ class ApplicationProcess:
             status = (result.returncode == 0)
         if print_status:
             print(
-                f'{TerminalColors.STATUS_HEADER}Tmux session of {settings.tmux_session_name} status:{TerminalColors.RESET} ',
-                f'{"Active" if status else "Does not exist"}',
+                f'{TerminalColors.STATUS_HEADER}Tmux session "{settings.tmux_session_name}":{TerminalColors.RESET} ',
+                f'{"is active" if status else "session does not exist"}',
             )
         return status
 

@@ -21,6 +21,7 @@ RPI_HOST_CONFIG_FILE = Path('rpi_host_config.yaml')
 RPI_SETTINGS_FILE = Path('developer_tools') / 'settings.ini'
 RPI_SETTINGS_FILE_SETTINGS_KEYWORD = 'settings'
 
+
 class RpiRemoteCommandError(Exception):
     """Execution error on RPI."""
 
@@ -357,8 +358,6 @@ def main() -> None:
             rpi_tmux_terminal_output(ssh_client, config)
         elif args.rpi_copy_code:
             rpi_upload_app_files(ssh_client, config)
-            # rpi_stop_application(ssh_client, config)
-            # rpi_tmux(ssh_client, rpi_application_process_name, config, restart_application=True)
 
 
 if __name__ == '__main__':

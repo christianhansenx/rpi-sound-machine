@@ -79,6 +79,25 @@ class Installer(InstallerTools):
                 func()
 
 
+def application_process_commands(args: argparse.Namespace, application_process: ApplicationProcess) -> None:
+    if args.check:
+        application_process.check()
+    if args.stop_application:
+        application_process.stop_application()
+    if args.tmux:
+        application_process.tmux()
+    if args.kill_tmux:
+        application_process.kill_tmux_session()
+    if args.run:
+        application_process.start_application_in_tmux_session()
+    if args.stop_service:
+        application_process.remove_service()
+    if args.start_service:
+        application_process.start_service()
+    if args.restart_service:
+        application_process.restart_service()
+
+
 def main() -> None:
     """Call functions depending on script arguments.
 
@@ -152,24 +171,8 @@ def main() -> None:
         raise RuntimeError(error)
 
     args = parser.parse_args()
-
     application_process = ApplicationProcess()
-    if args.check:
-        application_process.check()
-    if args.stop_application:
-        application_process.stop_application()
-    if args.tmux:
-        application_process.tmux()
-    if args.kill_tmux:
-        application_process.kill_tmux_session()
-    if args.run:
-        application_process.start_application_in_tmux_session()
-    if args.stop_service:
-        application_process.remove_service()
-    if args.start_service:
-        application_process.start_service()
-    if args.restart_service:
-        application_process.restart_service()
+    application_process_commands(args, application_process)
 
     if args.install is not None:
         installer = Installer(application_process, skip_apt_get_update=args.skip_apt_get_update)
