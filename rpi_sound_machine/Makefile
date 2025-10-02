@@ -8,28 +8,28 @@ install:
 	@python cli.py -y -i --restart-service
 
 check:
-	python cli.py --check
+	python developer_tools/application_utilities.py --check
 
 stop-app:
-	python cli.py --stop-application
+	python developer_tools/application_utilities.py --stop-application
 
 stop:
-	python cli.py --stop-service
+	python developer_tools/application_utilities.py --stop-service
 
 start:
-	python cli.py --start-service
+	python developer_tools/application_utilities.py --start-service
 
 restart:
-	python cli.py --restart-service
+	python developer_tools/application_utilities.py --restart-service
 
 run:
-	python cli.py --run
+	python developer_tools/application_utilities.py --run
 
 tmux:
-	python cli.py --tmux
+	python developer_tools/application_utilities.py --tmux
 
 kill-tmux:
-	python cli.py --kill-tmux
+	python developer_tools/application_utilities.py --kill-tmux
 
 reboot:
 	@echo "Rebooting device."

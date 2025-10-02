@@ -3,7 +3,7 @@ Description=Sound Machine
 After=network.target
 
 StartLimitBurst=10
-StartLimitIntervalSec=86400
+StartLimitIntervalSec=24h
 
 [Service]
 Type=simple
@@ -11,7 +11,7 @@ User=pi
 ExecStart=/usr/local/bin/sound-machine-start.sh
 #ExecStop=
 Restart=always
-RestartSec=10
+RestartSec=10s
 
 [Install]
 WantedBy=multi-user.target

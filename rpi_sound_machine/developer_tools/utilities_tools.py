@@ -10,10 +10,29 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 SETTINGS_FILE = 'settings.ini'
-LOCAL_SERVICE_DIRECTORY = Path(__file__).parent / 'system-service'
+LOCAL_SERVICE_DIRECTORY = Path(__file__).parent / '..' / 'system-service'
+
+
+class TerminalColors:
+    """ANSI escape codes for colors and styles."""
+
+    # Styles
+    RESET = '\033[0m'
+    BOLD = '\033[1m'
+
+    # Foreground Colors
+    RED = '\033[31m'
+    GREEN = '\033[32m'
+    YELLOW = '\033[33m'
+    BLUE = '\033[34m'
+    CYAN = '\033[36m'
+    BRIGHT_MAGENTA = '\033[95m'
+
+    STATUS_HEADER = BOLD + GREEN
+
 
 class ServiceError(Exception):
-    """Could perform service request."""
+    """Could not perform service request."""
 
 
 class ProcessKillError(Exception):
@@ -223,19 +242,27 @@ class ApplicationProcess:
     def get_application_ids_table(self, *, print_message: bool = True) -> tuple[list[str], list[dict[str, str]]]:
         table_rows, proc_table = self._get_process_table(settings.application_script)
         if proc_table:
-            printout = f'Running processes of {settings.application_script}:'
+            printout = f'{TerminalColors.STATUS_HEADER}Running processes of {settings.application_script}:{TerminalColors.RESET}'
             for output_line in table_rows:
                 printout += '\n  ' + output_line
         else:
-            printout = f'Process {settings.application_script} is not running.'
+            printout = (
+                f'{TerminalColors.STATUS_HEADER}Process {settings.application_script} is not running.'
+                f'{TerminalColors.RESET}'
+            )
         if print_message:
             print(printout)
         return printout, proc_table
 
     def check(self) -> None:
-        service_status, status_log_lines = self.get_service_status()
-        status_log = '\n' + status_log_lines if status_log_lines else ''
-        print(f'Service status for {settings.service_file_name}: {service_status}{status_log}')
+        service_status, status = self.get_service_status()
+        max_lines = 15
+        status_log_lines = status.strip().splitlines()[:max_lines]
+        status_log = '\n  ' + '\n  '.join(status_log_lines) if status_log_lines else ''
+        print(
+            f'{TerminalColors.STATUS_HEADER}Service status for {settings.service_file_name}:{TerminalColors.RESET} ',
+            f'{service_status}{status_log}',
+        )
         self.get_application_ids_table()
         self.is_tmux_active(raise_exception=False)
 
@@ -309,14 +336,16 @@ class ApplicationProcess:
         print('TO ENTER TMUX TERMINAL ON DEVICE: make tmux')
 
     def tmux(self) -> None:
-        if not self.is_tmux_active(raise_exception=False):
+        if not self.is_tmux_active(raise_exception=False, print_status=False):
             print(f'\nThere is no tmux session for {settings.tmux_session_name}!\n')
         _run_command(f'tmux attach -t {settings.tmux_session_name}')
 
     def kill_tmux_session(self, *, msg_no_kill: bool = True, delete_files: bool = True) -> None:
-        if not self.is_tmux_active(raise_exception=False, print_status=msg_no_kill):
+        if not self.is_tmux_active(raise_exception=False, print_status=False):
+            if msg_no_kill:
+                print(f'There is no tmux session for {settings.tmux_session_name} to close!\n')
             return
-        if msg_no_kill: 
+        if msg_no_kill:
             print(f'Killing tmux session: {settings.tmux_session_name}')
         _run_command(f'tmux kill-session -t {settings.tmux_session_name}')
         if self.is_tmux_active(print_status=False):
@@ -344,7 +373,10 @@ class ApplicationProcess:
                     result = _run_command(command)
             status = (result.returncode == 0)
         if print_status:
-            print(f'Tmux session of {settings.tmux_session_name} status: {"Active" if status else "Does not exist"}')
+            print(
+                f'{TerminalColors.STATUS_HEADER}Tmux session of {settings.tmux_session_name} status:{TerminalColors.RESET} ',
+                f'{"Active" if status else "Does not exist"}',
+            )
         return status
 
 

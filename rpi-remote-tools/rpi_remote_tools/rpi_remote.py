@@ -18,7 +18,8 @@ from .ssh_client import SshClient, SshClientHandler
 UPLOAD_EXCLUDES_FOLDERS = ['.venv', '.git', '.ruff_cache', '__pycache__']
 UPLOAD_EXCLUDES_FILES = []  # Add specific file names here if needed
 RPI_HOST_CONFIG_FILE = Path('rpi_host_config.yaml')
-
+RPI_SETTINGS_FILE = Path('developer_tools') / 'settings.ini'
+RPI_SETTINGS_FILE_SETTINGS_KEYWORD = 'settings'
 
 class RpiRemoteCommandError(Exception):
     """Execution error on RPI."""
@@ -40,7 +41,6 @@ class _RpiSettings(BaseModel):
     """Pydantic model for RPI settings."""
 
     application_script: str = Field(..., description='The main application file to run on the RPI.')
-    developer_cli: str = Field(..., description='The script name for developer command line interface on the RPI.')
     tmux_session_name: str = Field(..., description='The tmux session name.')
     tmux_log_path_pattern: str = Field(..., description='The log file path pattern for the tmux session.')
 
@@ -264,8 +264,6 @@ def rpi_upload_app_files(ssh_client: SshClient, config: RpiRemoteToolsConfig) ->
     """Upload application files to RPI."""
     all_exclude_patterns = UPLOAD_EXCLUDES_FOLDERS + UPLOAD_EXCLUDES_FILES
     ssh_client.upload_recursive(config.local_project_path, config.remote_project_folder, all_exclude_patterns)
-    cli_path = f'{config.remote_project_folder}/{config.rpi_settings.developer_cli}'
-    _stdin, stdout, stderr = ssh_client.client.exec_command(f'chmod +x {cli_path}')
 
 
 def _get_configurations(configurations_content: str, remote_username: str) -> RpiRemoteToolsConfig:
@@ -278,13 +276,13 @@ def _get_configurations(configurations_content: str, remote_username: str) -> Rp
     local_project_path = (Path(__file__).parent / '..' / '..' / config_data['project_directory']).resolve()
     config_data['local_project_path'] = local_project_path
 
-    rpi_settings_file_path = local_project_path / config_data['rpi_settings_file']
-    if not Path(rpi_settings_file_path).exists():
-        error = f'Settings file not found: {rpi_settings_file_path}'
+    settings_file = local_project_path / RPI_SETTINGS_FILE
+    if not Path(settings_file).exists():
+        error = f'Settings file not found: {settings_file}'
         raise FileNotFoundError(error)
     settings_data = configparser.ConfigParser()
-    settings_data.read(rpi_settings_file_path)
-    settings = settings_data[config_data['rpi_settings_key_word']]
+    settings_data.read(settings_file)
+    settings = settings_data[RPI_SETTINGS_FILE_SETTINGS_KEYWORD]
     settings['tmux_log_path_pattern'] = settings['tmux_log_path_pattern'].format(
         session_name=settings['tmux_session_name'],
         timestamp=r'{timestamp}',
