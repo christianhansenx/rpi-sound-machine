@@ -95,6 +95,7 @@ def main() -> None:
     installable = list(installable_items.keys())
 
     if len(sys.argv) == 1 or args.install is None:
+        print()
         print('No installation targets specified. Use -i or --install option to specify targets to be installed.')
         print(f'Possible targets are: {" ".join(installable_items)}')
         print('All items are to be installed if no targets provided.')

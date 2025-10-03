@@ -1,10 +1,14 @@
+CONFIRM =  # To be assigned with make command: make install CONFIRM='--no-confirms'
 .PHONY: no_arguments install check stop-app stop start-service start restart run kill-tmux reboot
 
 no_arguments:
 	@echo "Missing argument. Arguments: install | check | stop-app | stop | start-service | restart | run | kill-tmux | reboot"
 
 install:
-	python developer_tools/install.py --install -y
+	python developer_tools/install.py --install ${CONFIRM} 
+
+uninstall:
+	python developer_tools/uninstall.py --uninstall ${CONFIRM}
 
 check:
 	python developer_tools/application_utilities.py --check

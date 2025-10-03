@@ -84,15 +84,16 @@ def main() -> None:
     }
     installable = list(installable_items.keys())
 
-    if args.uninstall is None:
-        print('No uninstallation targets specified. Use -u or --uninstall option to specify items to uninstall.')
-        print(f'Possible items are: {" ".join(installable)}')
-        print('All items are to be uninstalled if no items provided.')
+    if len(sys.argv) == 1 or args.uninstall is None:
+        print()
+        print('No uninstallation targets specified. Use -u or --uninstall option to specify targets to uninstall.')
+        print(f'Possible targets are: {" ".join(installable_items)}')
+        print('All items are to be uninstalled if no targets provided.')
         return
 
     uninstalls = set(args.uninstall) if args.uninstall else set(installable)
     uninstalls_ordered = uninstaller.check_install_candidates(installable, uninstalls)
-    if not args.no_confirms and args.uninstall is not None:
+    if not args.no_confirms:
         print()
         print(f'You are about to uninstall{"" if args.uninstall else " all"}: {" ".join(uninstalls_ordered)}')
         answer = input('Are you sure you want to uninstall? (y/N): ').strip().lower()
@@ -101,7 +102,6 @@ def main() -> None:
             return
     print()
     uninstaller.uninstall(installable_items, uninstalls_ordered)
-    print('Success!')
 
 
 if __name__ == '__main__':
