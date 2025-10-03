@@ -136,9 +136,10 @@ class Settings:
             session_name=self.tmux_session_name,
             timestamp=r'{timestamp}',
         )
-        self.tmux_log_path_search_pattern = tmux_log_path_pattern.format(timestamp='*')
+        self.tmux_log_path_search_pattern = Path(tmux_log_path_pattern.format(timestamp='*'))
+        self.tmux_log_bak_path_search_pattern = Path(tmux_log_path_pattern.format(timestamp='*') + '.bak')
         timestamp = datetime.now(tz=ZoneInfo('UTC')).strftime('%Y%m%d-%H%M%S')
-        self.tmux_log_path = tmux_log_path_pattern.format(timestamp=timestamp)
+        self.tmux_log_path = Path(tmux_log_path_pattern.format(timestamp=timestamp))
 
 
 settings = Settings()
@@ -179,8 +180,8 @@ class ApplicationProcess:
 
     def restart_service(self) -> None:
         print(f'Restarting {settings.service_name}.service')
-        self.stop_application(msg_no_kill=False)
-        self.kill_tmux_session(msg_no_kill=False)
+        self.stop_application(show_messages=False)
+        self.kill_tmux_session(show_messages=False)
         self.remove_service(show_no_service_to_remove_msg=False)
         self.start_service()
 
@@ -272,7 +273,7 @@ class ApplicationProcess:
         self.get_application_ids_table()
         self.is_tmux_active(raise_exception=False)
 
-    def stop_application(self, *, msg_no_kill: bool = True) -> None:
+    def stop_application(self, *, show_messages: bool = True) -> None:
         """Stop application on RPI.
 
         Raises:
@@ -281,7 +282,7 @@ class ApplicationProcess:
         """
         printout, proc_table = self.get_application_ids_table(print_message=False)
         if not proc_table:
-            if msg_no_kill:
+            if show_messages:
                 print(f'There is no running process "{settings.application_script}" found, nothing to kill!')
             return
 
@@ -333,12 +334,12 @@ class ApplicationProcess:
 
     def start_application_in_tmux_session(self) -> None:
         print(f'Starting application "{settings.application_script}" in tmux session: {settings.tmux_session_name}')
-        self.kill_tmux_session(msg_no_kill=False)
+        self.kill_tmux_session(show_messages=False)
         _run_command(f'tmux new-session -d -s {settings.tmux_session_name}')
         _run_command(f'tmux pipe-pane -t {settings.tmux_session_name}:0.0 -o "cat >> {settings.tmux_log_path}"')
         app_run_command = f'uv run --no-group dev {settings.application_script}'
         _run_command(f'tmux send-keys -t {settings.tmux_session_name}:0.0 "{app_run_command}" C-m')
-        print(f'tmux log file: {settings.tmux_log_path}')
+        print(f'Tmux log file: {settings.tmux_log_path}')
         print('TO ENTER TMUX TERMINAL ON DEVICE: make tmux')
 
     def tmux(self) -> None:
@@ -346,19 +347,37 @@ class ApplicationProcess:
             print(f'\nThere is no tmux session for {settings.tmux_session_name}!\n')
         _run_command(f'tmux attach -t {settings.tmux_session_name}')
 
-    def kill_tmux_session(self, *, msg_no_kill: bool = True, delete_files: bool = True) -> None:
-        if not self.is_tmux_active(raise_exception=False, print_status=False):
-            if msg_no_kill:
-                print(f'There is no tmux session for "{settings.tmux_session_name}" to close!\n')
-            return
-        if msg_no_kill:
-            print(f'Killing tmux session: {settings.tmux_session_name}')
-        _run_command(f'tmux kill-session -t {settings.tmux_session_name}')
-        if self.is_tmux_active(print_status=False):
-            kill_error = f'Failed to kill tmux session: {settings.tmux_session_name}'
-            raise TmuxSessionKillError(kill_error)
-        if delete_files:
-            _run_command(f'rm -f {settings.tmux_log_path_search_pattern}', check=False, raise_std_error=True)
+    @staticmethod
+    def _get_file_paths_sorted(search_pattern: str, *, raise_no_file_exception: bool = False) -> list[Path]:
+        search_dir = Path(search_pattern).parent
+        name_pattern = Path(search_pattern).name
+        files = sorted([Path(file_path) for file_path in search_dir.glob(name_pattern)])
+        if not files:
+            error = f'No file found: {search_pattern}'
+            if raise_no_file_exception:
+                raise FileNotFoundError(error)
+        return files
+
+    def kill_tmux_session(self, *, show_messages: bool = True) -> None:
+        if self.is_tmux_active(raise_exception=False, print_status=False):
+            if show_messages:
+                print(f'Killing tmux session: {settings.tmux_session_name}')
+            _run_command(f'tmux kill-session -t {settings.tmux_session_name}')
+            if self.is_tmux_active(print_status=False):
+                kill_error = f'Failed to kill tmux session: {settings.tmux_session_name}'
+                raise TmuxSessionKillError(kill_error)
+        elif show_messages:
+            print(f'There is no tmux session for "{settings.tmux_session_name}" to close!\n')
+        if file_paths := self._get_file_paths_sorted(settings.tmux_log_path_search_pattern):
+            file_path = file_paths[-1]
+            backup_file_path = file_path.with_name(file_path.name + '.bak')
+            file_path.rename(backup_file_path)
+            print(f'Tmux backup file created: {backup_file_path}')
+            for file_path in file_paths:
+                file_path.unlink(missing_ok=True)
+        if bak_file_paths := self._get_file_paths_sorted(settings.tmux_log_bak_path_search_pattern):
+            for bak_file_path in bak_file_paths[:-1]:
+                bak_file_path.unlink(missing_ok=True)
 
     @staticmethod
     def is_tmux_active(*, raise_exception: bool = False, print_status: bool = True) -> bool:

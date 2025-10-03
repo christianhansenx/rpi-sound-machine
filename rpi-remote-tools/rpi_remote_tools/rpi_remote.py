@@ -26,8 +26,8 @@ class RpiRemoteCommandError(Exception):
     """Execution error on RPI."""
 
 
-class StartRpiTmuxError(Exception):
-    """Could not start tmux session on RPI."""
+class RpiTmuxError(Exception):
+    """tmux issue."""
 
 
 class KillSignals(enum.StrEnum):
@@ -80,16 +80,45 @@ class RpiCommand:
         print()
 
 
-def _rpi_tmux_get_log_file_path(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> str | None:
+def _rpi_get_tmux_log_file_path(
+        ssh_client: SshClient,
+        log_files_search_pattern: str,
+        *,
+        raise_no_file_exception: bool = True,
+) -> str | None:
+    _stdin, stdout, stderr = ssh_client.client.exec_command(f'ls {log_files_search_pattern}')
+    status = stdout.channel.recv_exit_status()
+    if status:
+        no_file_found = 2
+        if status != no_file_found:
+            error = f'Searching files on RPI: {log_files_search_pattern}, stderr={stderr.read().decode('utf-8').strip()}'
+            raise RpiTmuxError(error)
+        error = f'Log file found: {log_files_search_pattern}'
+        if raise_no_file_exception:
+            raise RpiTmuxError(error)
+    log_files = stdout.read().decode('utf-8').strip().split('\n')
+    log_files.sort()
+    log_file = log_files[-1]  # File name with most recent time stamp in the name
+    backup_log_file = f'{log_file}.backup'
+    _stdin, _stdout, _stderr = ssh_client.client.exec_command(f'cp {log_file} {backup_log_file} && ls {backup_log_file}x')
+    return log_file
+
+def _rpi_get_tmux_log_file_path(
+        ssh_client: SshClient,
+        config: RpiRemoteToolsConfig, *,
+        raise_no_file_exception: bool = True,
+) -> str | None:
     log_files_search_pattern = config.rpi_settings.tmux_log_path_pattern.format(timestamp='*')
     _stdin, stdout, stderr = ssh_client.client.exec_command(f'ls {log_files_search_pattern}')
     status = stdout.channel.recv_exit_status()
     if status:
         no_file_found = 2
-        if status == no_file_found:
-            return None
-        error = f'Searching files on RPI: {log_files_search_pattern}, stderr={stderr.read().decode('utf-8').strip()}'
-        raise StartRpiTmuxError(error)
+        if status != no_file_found:
+            error = f'Searching files on RPI: {log_files_search_pattern}, stderr={stderr.read().decode('utf-8').strip()}'
+            raise RpiTmuxError(error)
+        error = f'No log file found: {log_files_search_pattern}'
+        if raise_no_file_exception:
+            raise RpiTmuxError(error)
     log_files = stdout.read().decode('utf-8').strip().split('\n')
     log_files.sort()
     return log_files[-1]  # File name with most recent time stamp in the name
@@ -104,11 +133,17 @@ def rpi_tmux_terminal_output(ssh_client: SshClient, config: RpiRemoteToolsConfig
     #     StartRpiTmuxError: If tmux session could not be started.
 
     # """
-    tmux_log_file_path = _rpi_tmux_get_log_file_path(ssh_client, config)
-    if not tmux_log_file_path:
-        print('No log file found on rpi')
-    else:
-        print(f'log file on rpi: {tmux_log_file_path}')
+    session_name = config.rpi_settings.tmux_session_name
+    tmux_log_file_path = _rpi_get_tmux_log_file_path(ssh_client, config)
+    _stdin, stdout, stderr = ssh_client.client.exec_command(f'tmux has-session -t {session_name}')
+    exit_code = stdout.channel.recv_exit_status()
+    if exit_code != 0:
+        error = (
+            f'There is no active tmux session "{session_name}" on {ssh_client.connection}:'
+            f'\n{stderr.read().decode().strip()}',
+        )
+        raise RpiTmuxError(error)
+
     exit()
 
     # Restart tmux session if required
@@ -131,7 +166,7 @@ def rpi_tmux_terminal_output(ssh_client: SshClient, config: RpiRemoteToolsConfig
                 f'Could not open tmux session "{config.tmux_session_name}" on {ssh_client.connection}:'
                 f'\n{stderr.read().decode().strip()}',
             )
-            raise StartRpiTmuxError(error)
+            raise RpiTmuxError(error)
         tmux_check_pipe = f'tmux display-message -p -t {config.tmux_session_name}:0.0 "#{{pane_pipe}}"'
         _stdin, stdout, stderr = ssh_client.client.exec_command(tmux_check_pipe)
         if stdout.read().decode()[0] != '1':
