@@ -80,34 +80,6 @@ class RpiCommand:
         print()
 
 
-def rpi_check(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
-    rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
-    rpi_command.command('make check')
-
-
-def rpi_stop_application(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
-    rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
-    rpi_command.command('make stop-app')
-    rpi_command.command('make kill-tmux')
-
-
-def rpi_stop(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
-    rpi_stop_application(ssh_client, config)
-    rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
-    rpi_command.command('make stop')
-
-
-def rpi_restart_service(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
-    rpi_stop(ssh_client, config)
-    rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
-    rpi_command.command('make start')
-
-
-def rpi_run(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
-    rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
-    rpi_command.command('make run')
-
-
 def _rpi_tmux_get_log_file_path(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> str | None:
     log_files_search_pattern = config.rpi_settings.tmux_log_path_pattern.format(timestamp='*')
     _stdin, stdout, stderr = ssh_client.client.exec_command(f'ls {log_files_search_pattern}')
@@ -120,7 +92,7 @@ def _rpi_tmux_get_log_file_path(ssh_client: SshClient, config: RpiRemoteToolsCon
         raise StartRpiTmuxError(error)
     log_files = stdout.read().decode('utf-8').strip().split('\n')
     log_files.sort()
-    return log_files[-1]
+    return log_files[-1]  # File name with most recent time stamp in the name
 
 
 def rpi_tmux_terminal_output(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
@@ -319,12 +291,12 @@ def main() -> None:
         help='Restart application service on Raspberry Pi device',
     )
     parser.add_argument(
-        '--rpi-run-app',
+        '--rpi-run-app-in-tmux',
         action='store_true',
         help='Run application on Raspberry Pi device',
     )
     parser.add_argument(
-        '--rpi-copy-code',
+        '--rpi-upload-code',
         action='store_true',
         help='Copy code recursively to the Raspberry Pi device',
     )
@@ -340,24 +312,28 @@ def main() -> None:
         help='JSON string with the configuration',
     )
 
-    args = parser.parse_args()
+    execute_commands(parser.parse_args())
 
+
+def execute_commands(args: argparse.Namespace) -> None:
     with SshClientHandler(RPI_HOST_CONFIG_FILE) as ssh_client:
         config = _get_configurations(args.configurations, ssh_client.username)
-        if args.rpi_check:
-            rpi_check(ssh_client, config)
-        elif args.rpi_stop_app:
-            rpi_stop_application(ssh_client, config)
-        elif args.rpi_stop:
-            rpi_stop(ssh_client, config)
-        elif args.rpi_restart:
-            rpi_restart_service(ssh_client, config)
-        elif args.rpi_run_app:
-            rpi_run(ssh_client, config)
-        elif args.rpi_tmux:
+        rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
+        if args.rpi_stop_app or args.rpi_stop or args.rpi_restart:
+            rpi_command.command('make stop-app')
+            rpi_command.command('make kill-tmux')
+        if args.rpi_stop:
+            rpi_command.command('make stop-service')  # Stop service
+        if args.rpi_restart:
+            rpi_command.command('make start-service')
+        if args.rpi_run_app_in_tmux:
+            rpi_command.command('make run')
+        if args.rpi_tmux or args.rpi_run_app_in_tmux:
             rpi_tmux_terminal_output(ssh_client, config)
-        elif args.rpi_copy_code:
+        if args.rpi_upload_code:
             rpi_upload_app_files(ssh_client, config)
+        if args.rpi_check:
+            rpi_command.command('make check')
 
 
 if __name__ == '__main__':

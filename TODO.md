@@ -3,12 +3,13 @@
 ## Improvements
 
 - create issues in github
-- continue current play after reboot / status log in browser of when it was started last 20 times<br>
+- continue current play after reboot / status log in browser of when it was started last 20 times
 - avoid restart service when exit ssh session
 - scli command<br>
   create a symbolic link (symlink) to your script in a directory already in your PATH, like /usr/local/bin.<br>
   sudo ln -s /path/to/your_script.py /usr/local/bin/cli<br>
   This command creates a link named cli in /usr/local/bin that points to your script. Now, you can run cli from any directory.<br>
+- make it possible for service to start with make start
 - setting up github to run test at pull request
 - refactor and document install and uninstall items (also implement --exclude (add apt_get_update as item)), get Killsignal enums
 - tools check to check system service and tmux session and tmux log.

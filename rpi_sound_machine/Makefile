@@ -1,7 +1,7 @@
-.PHONY: no_arguments install check stop-app stop start restart run kill-tmux reboot
+.PHONY: no_arguments install check stop-app stop start-service start restart run kill-tmux reboot
 
 no_arguments:
-	@echo "Missing argument. Arguments: install | check | stop-app | stop | start | restart | run | kill-tmux | reboot"
+	@echo "Missing argument. Arguments: install | check | stop-app | stop | start-service | restart | run | kill-tmux | reboot"
 
 install:
 	@echo "Installing applications and restarting application service."
@@ -13,10 +13,10 @@ check:
 stop-app:
 	python developer_tools/application_utilities.py --stop-application
 
-stop:
+stop-service:
 	python developer_tools/application_utilities.py --stop-service
 
-start:
+start-service:
 	python developer_tools/application_utilities.py --start-service
 
 restart:

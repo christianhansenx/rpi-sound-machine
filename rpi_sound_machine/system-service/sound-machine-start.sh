@@ -1,3 +1,4 @@
 #!/bin/bash
 
-uv run --project ~/rpi_sound_machine --no-group dev ~/rpi_sound_machine/sound_machine.py
+cd ~/rpi_sound_machine
+uv run --no-group dev sound_machine.py
