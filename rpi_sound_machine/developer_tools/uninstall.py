@@ -4,7 +4,7 @@ import sys
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from rpi_sound_machine.cli_tool_box import SERVICE_FILE_NAME, InstallerTools
+from utilities_tools import InstallerTools, run_command
 
 
 class UninstallError(Exception):
@@ -23,8 +23,8 @@ class Uninstaller(InstallerTools):
             print('tmux not found. No uninstalling...')
             return
         print('Uninstalling tmux')
-        self.run_command('tmux kill-server', check=False)
-        self.run_command('sudo apt-get remove -y tmux')
+        run_command('tmux kill-server', check=False)
+        run_command('sudo apt-get remove -y tmux')
         if self.is_tmux_installed():
             error = 'Could not uninstall tmux.'
             raise UninstallError(error)
@@ -34,7 +34,7 @@ class Uninstaller(InstallerTools):
             print('uv not found. No uninstalling...')
             return
         print('Uninstalling uv')
-        self.run_command('sudo snap remove astral-uv')
+        run_command('sudo snap remove astral-uv')
         if self.is_uv_installed():
             error = 'Could not uninstall uv.'
             raise UninstallError(error)
@@ -44,15 +44,10 @@ class Uninstaller(InstallerTools):
             print('snap not found. No uninstalling...')
             return
         print('Uninstalling snap')
-        self.run_command('sudo apt-get purge snapd -y')
+        run_command('sudo apt-get purge snapd -y')
         if self.is_snap_installed():
             error = 'Could not uninstall snap.'
             raise UninstallError(error)
-
-    def uninstall_service(self) -> None:
-        """Uninstall the systemd service."""
-        print(f'Removing service: {SERVICE_FILE_NAME}')
-        self.remove_service()
 
     @staticmethod
     def uninstall(installable_items: dict[str, callable], uninstalls: list) -> None:
@@ -83,7 +78,6 @@ def main() -> None:
     args = parser.parse_args()
     uninstaller = Uninstaller()
     installable_items = {
-        'service': uninstaller.uninstall_service,
         'tmux': uninstaller.uninstall_tmux,
         'uv': uninstaller.uninstall_uv,
         'snap': uninstaller.uninstall_snap,

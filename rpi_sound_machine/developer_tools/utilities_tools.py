@@ -65,7 +65,7 @@ class ServiceStatus(enum.StrEnum):
     NOT_FOUND = 'not found'
 
 
-def _run_command(command: str, *, check: bool = True, raise_std_error: bool = True) -> subprocess.CompletedProcess:
+def run_command(command: str, *, check: bool = True, raise_std_error: bool = True) -> subprocess.CompletedProcess:
     r"""Run a shell command.
 
     Args:
@@ -163,7 +163,7 @@ class ApplicationProcess:
                 return ServiceStatus.NOT_FOUND
             return ServiceStatus.INACTIVE
 
-        result = _run_command(f'TZ=UTC systemctl status {settings.service_file_name}', check=False, raise_std_error=False)
+        result = run_command(f'TZ=UTC systemctl status {settings.service_file_name}', check=False, raise_std_error=False)
         status = _get_status_value(result)
         return status, result.stdout
 
@@ -187,24 +187,24 @@ class ApplicationProcess:
 
     def start_service(self) -> None:
         if _files_are_different(settings.local_start_script, settings.system_start_script_path):
-            _run_command(f'sudo chmod +x {settings.local_start_script}')
-            _run_command(f'sudo cp {settings.local_start_script} {settings.system_start_script_path}')
+            run_command(f'sudo chmod +x {settings.local_start_script}')
+            run_command(f'sudo cp {settings.local_start_script} {settings.system_start_script_path}')
         if _files_are_different(settings.local_service_file, settings.system_service_file_path):
-            _run_command(f'sudo cp {settings.local_service_file} {settings.system_service_file_path}')
+            run_command(f'sudo cp {settings.local_service_file} {settings.system_service_file_path}')
 
-        _run_command(f'sudo systemctl enable {settings.service_file_name}', check=False, raise_std_error=False)
+        run_command(f'sudo systemctl enable {settings.service_file_name}', check=False, raise_std_error=False)
         self.wait_service_status(ServiceStatus.ENABLED_INACTIVE)
-        _run_command(f'sudo systemctl start {settings.service_file_name}')
-        _run_command('sudo systemctl daemon-reload')
+        run_command(f'sudo systemctl start {settings.service_file_name}')
+        run_command('sudo systemctl daemon-reload')
         self.wait_service_status(ServiceStatus.ACTIVE)
         print(f'Service "{settings.service_file_name}" has been started successfully!')
 
     def remove_service(self, *, show_no_service_to_remove_msg: bool = True) -> None:
         def _remove_service_files() -> None:
             if Path(settings.system_service_file_path).exists():
-                _run_command(f'sudo rm {settings.system_service_file_path}')
+                run_command(f'sudo rm {settings.system_service_file_path}')
             if Path(settings.system_start_script_path).exists():
-                _run_command(f'sudo rm {settings.system_start_script_path}')
+                run_command(f'sudo rm {settings.system_start_script_path}')
 
         service_status, _service_log = self.get_service_status()
         if service_status not in {ServiceStatus.ACTIVE, ServiceStatus.ENABLED_INACTIVE}:
@@ -213,10 +213,10 @@ class ApplicationProcess:
             _remove_service_files()
             return
         print(f'Removing service {settings.service_file_name}')
-        _run_command(f'sudo systemctl disable --now {settings.service_file_name}', check=False, raise_std_error=False)
+        run_command(f'sudo systemctl disable --now {settings.service_file_name}', check=False, raise_std_error=False)
         self.wait_service_status(ServiceStatus.INACTIVE)
         _remove_service_files()
-        _run_command('sudo systemctl daemon-reload')
+        run_command('sudo systemctl daemon-reload')
 
     @staticmethod
     def _get_process_table(process: str) -> tuple[list[str], list[dict[str, str]]]:
@@ -226,7 +226,7 @@ class ApplicationProcess:
             List of running application process id's as row text list and dict table.
 
         """
-        result = _run_command('TZ=UTC ps aux', check=False)
+        result = run_command('TZ=UTC ps aux', check=False)
         all_app_proc_output = result.stdout.split('\n')
         header_line = all_app_proc_output[0]
         headers = header_line.split()
@@ -311,14 +311,14 @@ class ApplicationProcess:
         for pid in proc_kill_list:
             for kill_signal in KillSignals:
                 error = f'Failed to kill "{settings.application_script}" (PID {pid}) with {kill_signal.name}'
-                result = _run_command(f'kill {kill_signal.value} {pid}', check=False, raise_std_error=False)
+                result = run_command(f'kill {kill_signal.value} {pid}', check=False, raise_std_error=False)
                 if result.returncode != 0:
                     error_message = f'{error}: {result.stderr.strip()}'
                     raise ProcessKillError(error_message)
                 check_reties = 10
                 while True:
                     time.sleep(0.2)
-                    result = _run_command(f'ps -p {pid}', check=False)
+                    result = run_command(f'ps -p {pid}', check=False)
                     if result.returncode != 0:
                         error = ''
                         break
@@ -335,17 +335,17 @@ class ApplicationProcess:
     def start_application_in_tmux_session(self) -> None:
         print(f'Starting application "{settings.application_script}" in tmux session: {settings.tmux_session_name}')
         self.kill_tmux_session(show_messages=False)
-        _run_command(f'tmux new-session -d -s {settings.tmux_session_name}')
-        _run_command(f'tmux pipe-pane -t {settings.tmux_session_name}:0.0 -o "cat >> {settings.tmux_log_path}"')
+        run_command(f'tmux new-session -d -s {settings.tmux_session_name}')
+        run_command(f'tmux pipe-pane -t {settings.tmux_session_name}:0.0 -o "cat >> {settings.tmux_log_path}"')
         app_run_command = f'uv run --no-group dev {settings.application_script}'
-        _run_command(f'tmux send-keys -t {settings.tmux_session_name}:0.0 "{app_run_command}" C-m')
+        run_command(f'tmux send-keys -t {settings.tmux_session_name}:0.0 "{app_run_command}" C-m')
         print(f'Tmux log file: {settings.tmux_log_path}')
         print('TO ENTER TMUX TERMINAL ON DEVICE: make tmux')
 
     def tmux(self) -> None:
         if not self.is_tmux_active(raise_exception=False, print_status=False):
             print(f'\nThere is no tmux session for {settings.tmux_session_name}!\n')
-        _run_command(f'tmux attach -t {settings.tmux_session_name}')
+        run_command(f'tmux attach -t {settings.tmux_session_name}')
 
     @staticmethod
     def _get_file_paths_sorted(search_pattern: str, *, raise_no_file_exception: bool = False) -> list[Path]:
@@ -362,7 +362,7 @@ class ApplicationProcess:
         if self.is_tmux_active(raise_exception=False, print_status=False):
             if show_messages:
                 print(f'Killing tmux session: {settings.tmux_session_name}')
-            _run_command(f'tmux kill-session -t {settings.tmux_session_name}')
+            run_command(f'tmux kill-session -t {settings.tmux_session_name}')
             if self.is_tmux_active(print_status=False):
                 kill_error = f'Failed to kill tmux session: {settings.tmux_session_name}'
                 raise TmuxSessionKillError(kill_error)
@@ -387,15 +387,15 @@ class ApplicationProcess:
             True if tmux session is active, False otherwise.
 
         """
-        if _run_command('tmux ls', check=False, raise_std_error=False).returncode != 0:
+        if run_command('tmux ls', check=False, raise_std_error=False).returncode != 0:
             status = False
         else:
             command = f'tmux has-session -t {settings.tmux_session_name}'
             if raise_exception:
-                result = _run_command(command)
+                result = run_command(command)
             else:
                 with suppress(subprocess.CalledProcessError):
-                    result = _run_command(command)
+                    result = run_command(command)
             status = (result.returncode == 0)
         if print_status:
             print(
@@ -404,13 +404,24 @@ class ApplicationProcess:
             )
         return status
 
+    def make_files_executable() -> None:
+        """Make files executable.
+
+        Traverses all directories from the current location and changes the
+        permissions of all .sh files to be executable.
+        """
+        app_root_path = Path(__file__).resolve().parent
+        print(f'Apply execute permission to selected files in: {app_root_path}')
+        for filepath in app_root_path.rglob('*.sh'):
+            if filepath.is_file():
+                filepath.chmod(0o755)
+
 
 class InstallerTools:
     """Class with tools for installation and uninstallation."""
 
-    def __init__(self, application_process: ApplicationProcess, *, skip_apt_get_update: bool = False) -> None:
+    def __init__(self, *, skip_apt_get_update: bool = False) -> None:
         """Initialize installer tools."""
-        self.application_process = application_process
         self._skip_apt_get_update = skip_apt_get_update
         self._reboot_required = False
 
@@ -421,7 +432,7 @@ class InstallerTools:
         """Run apt-get update if not already done."""
         if not self._skip_apt_get_update:
             print('Running apt-get update')
-            _run_command('sudo apt-get update')
+            run_command('sudo apt-get update')
             self._skip_apt_get_update = True
 
     @staticmethod
@@ -433,7 +444,7 @@ class InstallerTools:
 
         """
         try:
-            _run_command('which tmux', check=True)
+            run_command('which tmux', check=True)
         except subprocess.CalledProcessError:
             return False
         return True
@@ -447,7 +458,7 @@ class InstallerTools:
 
         """
         try:
-            _run_command('which uv', check=True)
+            run_command('which uv', check=True)
         except subprocess.CalledProcessError:
             return False
         return True
@@ -461,7 +472,7 @@ class InstallerTools:
 
         """
         try:
-            _run_command('which snap', check=True)
+            run_command('which snap', check=True)
         except subprocess.CalledProcessError:
             return False
         return True

@@ -25,7 +25,7 @@ restart configurations="{}":
 run configurations="{}":
     @just _rpi --rpi-run-app-in-tmux '{{configurations}}'
 
-# Copying application to Raspberry Pi device and then starting application
+# Copying application to Raspberry Pi device
 sync configurations="{}":
     @just _rpi --rpi-upload-code '{{configurations}}'
 

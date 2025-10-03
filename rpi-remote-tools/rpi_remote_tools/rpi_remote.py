@@ -188,6 +188,27 @@ def _get_configurations(configurations_content: str, remote_username: str) -> Rp
     return RpiRemoteToolsConfig(**config_data)
 
 
+def execute_commands(args: argparse.Namespace) -> None:
+    with SshClientHandler(RPI_HOST_CONFIG_FILE) as ssh_client:
+        config = _get_configurations(args.configurations, ssh_client.username)
+        rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
+        if args.rpi_stop_app or args.rpi_stop or args.rpi_restart:
+            rpi_command.command('make stop-app')
+            rpi_command.command('make kill-tmux')
+        if args.rpi_stop:
+            rpi_command.command('make stop-service')  # Stop service
+        if args.rpi_restart:
+            rpi_command.command('make start-service')
+        if args.rpi_run_app_in_tmux:
+            rpi_command.command('make run')
+        if args.rpi_tmux or args.rpi_run_app_in_tmux:
+            rpi_tmux_terminal_output(ssh_client, config)
+        if args.rpi_upload_code:
+            rpi_upload_app_files(ssh_client, config)
+        if args.rpi_check:
+            rpi_command.command('make check')
+
+
 def main() -> None:
     """Call functions depending on script arguments."""
     print(f'Python version: {sys.version_info.major}.{sys.version_info.minor}')
@@ -236,27 +257,6 @@ def main() -> None:
     )
 
     execute_commands(parser.parse_args())
-
-
-def execute_commands(args: argparse.Namespace) -> None:
-    with SshClientHandler(RPI_HOST_CONFIG_FILE) as ssh_client:
-        config = _get_configurations(args.configurations, ssh_client.username)
-        rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
-        if args.rpi_stop_app or args.rpi_stop or args.rpi_restart:
-            rpi_command.command('make stop-app')
-            rpi_command.command('make kill-tmux')
-        if args.rpi_stop:
-            rpi_command.command('make stop-service')  # Stop service
-        if args.rpi_restart:
-            rpi_command.command('make start-service')
-        if args.rpi_run_app_in_tmux:
-            rpi_command.command('make run')
-        if args.rpi_tmux or args.rpi_run_app_in_tmux:
-            rpi_tmux_terminal_output(ssh_client, config)
-        if args.rpi_upload_code:
-            rpi_upload_app_files(ssh_client, config)
-        if args.rpi_check:
-            rpi_command.command('make check')
 
 
 if __name__ == '__main__':

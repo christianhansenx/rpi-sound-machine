@@ -4,8 +4,7 @@ no_arguments:
 	@echo "Missing argument. Arguments: install | check | stop-app | stop | start-service | restart | run | kill-tmux | reboot"
 
 install:
-	@echo "Installing applications and restarting application service."
-	@python cli.py -y -i --restart-service
+	python developer_tools/install.py --install -y
 
 check:
 	python developer_tools/application_utilities.py --check

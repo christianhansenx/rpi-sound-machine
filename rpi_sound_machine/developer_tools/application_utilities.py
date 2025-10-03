@@ -3,80 +3,9 @@
 import argparse
 import sys
 from datetime import datetime
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from utilities_tools import ApplicationProcess, InstallerTools, settings
-
-
-class InstallError(Exception):
-    """Exception raised when an uninstallation process fails."""
-
-
-class Installer(InstallerTools):
-    """Class installation."""
-
-    def __init__(self, application_process: ApplicationProcess, *, skip_apt_get_update: bool = False) -> None:
-        """Initialize installer tools."""
-        super().__init__(application_process, skip_apt_get_update=skip_apt_get_update)
-
-    @staticmethod
-    def make_files_executable() -> None:
-        """Make files executable.
-
-        Traverses all directories from the current location and changes the
-        permissions of all .sh files to be executable.
-        Also make selected python scripts executable.
-        """
-        app_root_path = Path(__file__).resolve().parent
-        print(f'Apply execute permission to selected files in: {app_root_path}')
-        for filepath in app_root_path.rglob('*.sh'):
-            if filepath.is_file():
-                filepath.chmod(0o755)
-        cli_path = Path(settings.developer_cli)
-        cli_path.chmod(0o755)
-
-    def install_tmux(self) -> None:
-        if self.is_tmux_installed():
-            print('tmux already installed. No installing...')
-            return
-        self.apt_get_update()
-        print('Installing tmux')
-        self.run_command('sudo apt-get install -y tmux')
-        if not self.is_tmux_installed():
-            error = 'Could not install tmux.'
-            raise InstallError(error)
-
-    def install_snap(self) -> None:
-        if self.is_snap_installed():
-            print('snap already installed. No installing...')
-            return
-        self.apt_get_update()
-        print('Installing snap')
-        self.run_command('sudo apt install snapd')
-        self.run_command('sudo snap install snapd')
-        if not self.is_snap_installed():
-            error = 'Could not install uv.'
-            raise InstallError(error)
-        self.set_reboot_required()
-
-    def install_uv(self) -> None:
-        if self.is_uv_installed():
-            print('uv already installed. No installing...')
-            return
-        self.apt_get_update()
-        print('Installing uv')
-        self.run_command('sudo snap install astral-uv --classic')
-        if not self.is_uv_installed():
-            error = 'Could not install uv.'
-            raise InstallError(error)
-        self.set_reboot_required()
-
-    @staticmethod
-    def install(installable_items: dict[str, callable], installs: list) -> None:
-        for item, func in installable_items.items():
-            if item in installs:
-                func()
+from utilities_tools import ApplicationProcess
 
 
 def application_process_commands(args: argparse.Namespace, application_process: ApplicationProcess) -> None:
@@ -108,17 +37,11 @@ def main() -> None:
     print(f'UTC time: {datetime.now(tz=ZoneInfo("UTC")).strftime("%Y-%m-%d %H:%M:%S")}')
     print(f'Python version: {sys.version_info.major}.{sys.version_info.minor}')
 
-    parser = argparse.ArgumentParser(description='Raspberry Pi Uninstaller.')
-    parser.add_argument(
-        '-y',
-        '--no-confirms',
-        action='store_true',
-        help='User will not be asked to confirmation installation.',
-    )
+    parser = argparse.ArgumentParser(description='Raspberry Pi Application Utilities.')
     parser.add_argument(
         '--check',
         action='store_true',
-        help='Printing application process info.',
+        help='Printing application application info.',
     )
     parser.add_argument(
         '--stop-application',
@@ -155,16 +78,6 @@ def main() -> None:
         action='store_true',
         help='Restarting system service of application.',
     )
-    parser.add_argument(
-        '--install',
-        nargs='*',  # Accepts zero or more arguments
-        help='A list of items to install (e.g. tmux uv snap).',
-    )
-    parser.add_argument(
-        '--skip-apt-get-update',
-        action='store_true',
-        help='Will skip "sudo apt-get update" during installing of applications.',
-    )
 
     if len(sys.argv) == 1:
         error = 'No arguments provided.'
@@ -173,28 +86,6 @@ def main() -> None:
     args = parser.parse_args()
     application_process = ApplicationProcess()
     application_process_commands(args, application_process)
-
-    if args.install is not None:
-        installer = Installer(application_process, skip_apt_get_update=args.skip_apt_get_update)
-        installable_items = {
-            'set_exec': installer.make_files_executable,
-            'tmux': installer.install_tmux,
-            'snap': installer.install_snap,
-            'uv': installer.install_uv,
-            'service': installer.application_process.restart_service,
-        }
-        installable = list(installable_items.keys())
-        installs = list(args.install) if args.install else list(installable)
-        installs_ordered = installer.check_install_candidates(installable, installs)
-        if not args.no_confirms:
-            print()
-            print(f'You are about to install{"" if args.install else " all"}: {" ".join(installs_ordered)}')
-            answer = input('Are you sure you want to install? (y/N): ').strip().lower()
-            if answer != 'y':
-                print('Installation cancelled.')
-                return
-        print()
-        installer.install(installable_items, installs_ordered)
     print()
 
 
