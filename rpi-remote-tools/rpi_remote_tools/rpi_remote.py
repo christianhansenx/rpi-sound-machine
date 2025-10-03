@@ -18,7 +18,7 @@ from .ssh_client import SshClient, SshClientHandler
 UPLOAD_EXCLUDES_FOLDERS = ['.venv', '.git', '.ruff_cache', '__pycache__']
 UPLOAD_EXCLUDES_FILES = []  # Add specific file names here if needed
 RPI_HOST_CONFIG_FILE = Path('rpi_host_config.yaml')
-RPI_SETTINGS_FILE = Path('developer_tools') / 'settings.ini'
+RPI_SETTINGS_FILE = 'settings.ini'
 RPI_SETTINGS_FILE_SETTINGS_KEYWORD = 'settings'
 
 

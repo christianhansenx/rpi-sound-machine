@@ -115,7 +115,7 @@ class Settings:
             FileNotFoundError: if settings file was not found.
 
         """
-        setting_path = Path(__file__).parent / SETTINGS_FILE
+        setting_path = Path(__file__).parent / '..' / SETTINGS_FILE
         if not Path(setting_path).exists():
             error = f'Settings file not found: {setting_path}'
             raise FileNotFoundError(error)
