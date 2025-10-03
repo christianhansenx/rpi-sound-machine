@@ -80,43 +80,15 @@ class RpiCommand:
         print()
 
 
-def _rpi_get_tmux_log_file_path(
-        ssh_client: SshClient,
-        log_files_search_pattern: str,
-        *,
-        raise_no_file_exception: bool = True,
-) -> str | None:
-    _stdin, stdout, stderr = ssh_client.client.exec_command(f'ls {log_files_search_pattern}')
+def _rpi_get_file_path(ssh_client: SshClient, search_pattern: str, *, raise_no_file_exception: bool = True) -> str | None:
+    _stdin, stdout, stderr = ssh_client.client.exec_command(f'ls {search_pattern}')
     status = stdout.channel.recv_exit_status()
     if status:
         no_file_found = 2
         if status != no_file_found:
-            error = f'Searching files on RPI: {log_files_search_pattern}, stderr={stderr.read().decode('utf-8').strip()}'
+            error = f'Searching files on RPI: {search_pattern}, stderr={stderr.read().decode('utf-8').strip()}'
             raise RpiTmuxError(error)
-        error = f'Log file found: {log_files_search_pattern}'
-        if raise_no_file_exception:
-            raise RpiTmuxError(error)
-    log_files = stdout.read().decode('utf-8').strip().split('\n')
-    log_files.sort()
-    log_file = log_files[-1]  # File name with most recent time stamp in the name
-    backup_log_file = f'{log_file}.backup'
-    _stdin, _stdout, _stderr = ssh_client.client.exec_command(f'cp {log_file} {backup_log_file} && ls {backup_log_file}x')
-    return log_file
-
-def _rpi_get_tmux_log_file_path(
-        ssh_client: SshClient,
-        config: RpiRemoteToolsConfig, *,
-        raise_no_file_exception: bool = True,
-) -> str | None:
-    log_files_search_pattern = config.rpi_settings.tmux_log_path_pattern.format(timestamp='*')
-    _stdin, stdout, stderr = ssh_client.client.exec_command(f'ls {log_files_search_pattern}')
-    status = stdout.channel.recv_exit_status()
-    if status:
-        no_file_found = 2
-        if status != no_file_found:
-            error = f'Searching files on RPI: {log_files_search_pattern}, stderr={stderr.read().decode('utf-8').strip()}'
-            raise RpiTmuxError(error)
-        error = f'No log file found: {log_files_search_pattern}'
+        error = f'File not found: {search_pattern}'
         if raise_no_file_exception:
             raise RpiTmuxError(error)
     log_files = stdout.read().decode('utf-8').strip().split('\n')
@@ -124,148 +96,66 @@ def _rpi_get_tmux_log_file_path(
     return log_files[-1]  # File name with most recent time stamp in the name
 
 
-def rpi_tmux_terminal_output(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
-    # """Open tmux session on RPI.
+def _check_tmux_session(ssh_client: SshClient, session_name: str, log_file: str) -> None:
+    """Check tmux session on RPI.
 
-    # If restart_application is True, the application will be started in the tmux session.
+    Raises:
+        RpiTmuxError: If tmux session issue.
 
-    # Raises:
-    #     StartRpiTmuxError: If tmux session could not be started.
-
-    # """
-    session_name = config.rpi_settings.tmux_session_name
-    tmux_log_file_path = _rpi_get_tmux_log_file_path(ssh_client, config)
+    """
+    _rpi_get_file_path(ssh_client, log_file)
     _stdin, stdout, stderr = ssh_client.client.exec_command(f'tmux has-session -t {session_name}')
     exit_code = stdout.channel.recv_exit_status()
     if exit_code != 0:
         error = (
             f'There is no active tmux session "{session_name}" on {ssh_client.connection}:'
-            f'\n{stderr.read().decode().strip()}',
+            f'\n{stderr.read().decode('utf-8').strip()}'
         )
         raise RpiTmuxError(error)
-
-    exit()
-
-    # Restart tmux session if required
-    tmux_command = None
-    if restart_application:
-        _stdin, stdout, stderr = ssh_client.client.exec_command(f'{config.remote_project_folder}/start-tmux.sh')
-        exit_code = stdout.channel.recv_exit_status()
-        if exit_code != 0:
-            error = (
-                f'Could not open tmux session "{config.tmux_session_name}" on {ssh_client.connection}:'
-                f'\n{stderr.read().decode().strip()}',
-            )
-            raise StartRpiTmuxError(error)
-
-    else:
-        _stdin, stdout, stderr = ssh_client.client.exec_command(f'tmux has-session -t {config.tmux_session_name}')
-        exit_code = stdout.channel.recv_exit_status()
-        if exit_code != 0:
-            error = (
-                f'Could not open tmux session "{config.tmux_session_name}" on {ssh_client.connection}:'
-                f'\n{stderr.read().decode().strip()}',
-            )
-            raise RpiTmuxError(error)
-        tmux_check_pipe = f'tmux display-message -p -t {config.tmux_session_name}:0.0 "#{{pane_pipe}}"'
-        _stdin, stdout, stderr = ssh_client.client.exec_command(tmux_check_pipe)
-        if stdout.read().decode()[0] != '1':
-            tmux_command = (
-                f'rm {tmux_log_file_path} 2>/dev/null; '
-                f'tmux pipe-pane -t {config.tmux_session_name}:0.0 -o "cat >> {tmux_log_file_path}"'
-            )
-
-    if tmux_command:
-        ssh_client.client.exec_command(tmux_command)
-        time.sleep(1)
-
-    _tmux_terminal(ssh_client, process_name, tmux_log_file_path, config, restart_application=restart_application)
+    tmux_check_pipe = f'tmux display-message -p -t {session_name}:0.0 "#{{pane_pipe}}"'
+    _stdin, stdout, _stderr = ssh_client.client.exec_command(tmux_check_pipe)
+    if stdout.read().decode()[0] != '1':
+        error = f'There is no tmux piping to log file for session "{session_name}" on {ssh_client.connection}'
+        raise RpiTmuxError(error)
 
 
-def _tmux_terminal_output(
-        ssh_client: SshClient, process_name: str,
-        tmux_log_file_path: str,
-        config: RpiRemoteToolsConfig,
-        *,
-        restart_application: bool,
-) -> None:
-    # start sftp
-    max_retries = 10
-    sftp_client = None
-    for _ in range(max_retries):
-        try:
-            sftp_client = ssh_client.client.open_sftp()
-            sftp_client.stat(tmux_log_file_path)
-            break
-        except OSError as e:
-            if e.errno == errno.ENOENT:  # File not found
-                time.sleep(0.5)
-            else:
-                raise
-    else:
-        error = f'Failed to find log file on rpi: {tmux_log_file_path}'
-        raise FileNotFoundError(error)
-
-    # Start application (if required)
-    if restart_application:
-        ssh_client.client.exec_command(f'{config.remote_project_folder}/start.sh')
-        print(f'Application {config.rpi_settings.application_script} on {ssh_client.connection} has been started')
-
-    _tmux_terminal_streaming(ssh_client, process_name, tmux_log_file_path, config, sftp_client)
-
-
-def _tmux_terminal_streaming(
-    ssh_client: SshClient,
-    process_name: str,
-    tmux_log_file_path: str,
-    config: RpiRemoteToolsConfig,
-    sftp_client: SFTPClient,
-) -> None:
-    tmux_session_msg = (
-        f'\ntmux session "{config.tmux_session_name}" is running on {ssh_client.connection}, to access it from rpi terminal:'
-        f' tmux attach -t {config.tmux_session_name} (or "make tmux" from ~/{config.project_directory})'
-    )
+def rpi_tmux_terminal_output(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
+    session_name = config.rpi_settings.tmux_session_name
+    log_file_search_pattern = config.rpi_settings.tmux_log_path_pattern.format(timestamp='*')
+    tmux_log_file_path = _rpi_get_file_path(ssh_client, log_file_search_pattern)
+    _check_tmux_session(ssh_client, session_name, tmux_log_file_path)
 
     # Set up user termination thread
     stop_event = threading.Event()
 
     def wait_for_enter() -> None:
         input()  # Waits until the user presses Enter
-        print(f'{tmux_session_msg}')
         stop_event.set()
 
     input_thread = threading.Thread(target=wait_for_enter, daemon=True)
     input_thread.start()
 
+    sftp_client = ssh_client.client.open_sftp()
+    sftp_client.stat(tmux_log_file_path)
+
     # tmux streaming
     remote_tmux_log = sftp_client.open(tmux_log_file_path, 'r', bufsize=4096)
-    mux_log_creation_time = remote_tmux_log.stat().st_mtime
-    print(f'{tmux_session_msg}')
-    check_app_reties = 10
-    while True:
-        if _rpi_check_running_app(ssh_client, process_name):
-            break
-        check_app_reties -= 1
-        if check_app_reties < 0:
-            print(f'WARNING: No running process found of "{process_name}"')
-            break
-        time.sleep(0.2)
     print('Press Enter to exit remote tmux session.\n')
     try:
+        error_check_time_interval = 3
+        error_check_timer_start = time.monotonic()
         while not stop_event.is_set():
             line = remote_tmux_log.readline()
             if line:
                 sys.stdout.write(line)
                 sys.stdout.flush()
-            else:
-                time.sleep(0.5)
-                if sftp_client.stat(tmux_log_file_path).st_mtime != mux_log_creation_time:
-                    error = 'Log file was deleted and recreated.'
-                    raise RuntimeError(error)
+            if time.monotonic() - error_check_timer_start > error_check_time_interval:
+                _check_tmux_session(ssh_client, session_name, tmux_log_file_path)
+                error_check_timer_start = time.monotonic()
+            time.sleep(0.02)
     finally:
         remote_tmux_log.close()
         sftp_client.close()
-        print('tmux closed')
 
 
 def rpi_upload_app_files(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
