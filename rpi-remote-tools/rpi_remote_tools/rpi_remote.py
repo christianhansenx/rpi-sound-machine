@@ -2,7 +2,6 @@
 import argparse
 import configparser
 import enum
-import errno
 import json
 import sys
 import threading
@@ -10,7 +9,6 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from paramiko import SFTPClient
 from pydantic import BaseModel, Field
 
 from .ssh_client import SshClient, SshClientHandler
