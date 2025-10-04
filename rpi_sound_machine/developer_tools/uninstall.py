@@ -64,7 +64,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description='Raspberry Pi Uninstaller.')
     parser.add_argument(
         '-y',
-        '--no-confirms',
+        '--auto-confirm',
         action='store_true',
         help='User will not be asked to confirmation uninstallation.',
     )
@@ -93,7 +93,7 @@ def main() -> None:
 
     uninstalls = set(args.uninstall) if args.uninstall else set(installable)
     uninstalls_ordered = uninstaller.check_install_candidates(installable, uninstalls)
-    if not args.no_confirms:
+    if not args.auto_confirm:
         print()
         print(f'You are about to uninstall{"" if args.uninstall else " all"}: {" ".join(uninstalls_ordered)}')
         answer = input('Are you sure you want to uninstall? (y/N): ').strip().lower()

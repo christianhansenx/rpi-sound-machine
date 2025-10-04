@@ -63,22 +63,24 @@ class RpiCommand:
     stdout: list[str] = field(default_factory=list)
     stderr: list[str] = field(default_factory=list)
 
-    def command(self, command: str, *, print_stdout: bool = True) -> None:
+    def command(self, command: str, *, print_stdout: bool = True, ignore_stderr: bool = False) -> None:
         print(f'== Remote command to RPI: {command}')
         command_line = f'cd /home/{self.ssh_client.username}/{self.project_directory} && {command}'
         _stdin, stdout, stderr = self.ssh_client.client.exec_command(command_line)
         self.status = stdout.channel.recv_exit_status()
         self.stdout = stdout.read().decode('utf-8').rstrip().split('\n')
         self.stderr = stderr.read().decode('utf-8').rstrip().split('\n')
-        if print_stdout:
+        if print_stdout and self.stdout[0]:
             print(f'{"\n".join(self.stdout)}')
         if self.stderr[0]:
-            error = f'{"\n".join(self.stderr)}\nRPI command line: {command_line}'
-            raise RpiRemoteCommandError(error)
+            if not ignore_stderr:
+                error = f'{"\n".join(self.stderr)}\nRPI command line: {command_line}'
+                raise RpiRemoteCommandError(error)
+            print(f'WARNING: {"\n".join(self.stderr)}')
         print()
 
 
-def _rpi_get_file_path(ssh_client: SshClient, search_pattern: str, *, raise_no_file_exception: bool = True) -> str | None:
+def rpi_get_file_path(ssh_client: SshClient, search_pattern: str, *, raise_no_file_exception: bool = True) -> str | None:
     _stdin, stdout, stderr = ssh_client.client.exec_command(f'ls {search_pattern}')
     status = stdout.channel.recv_exit_status()
     if status:
@@ -101,7 +103,7 @@ def _check_tmux_session(ssh_client: SshClient, session_name: str, log_file: str)
         RpiTmuxError: If tmux session issue.
 
     """
-    _rpi_get_file_path(ssh_client, log_file)
+    rpi_get_file_path(ssh_client, log_file)
     _stdin, stdout, stderr = ssh_client.client.exec_command(f'tmux has-session -t {session_name}')
     exit_code = stdout.channel.recv_exit_status()
     if exit_code != 0:
@@ -120,7 +122,7 @@ def _check_tmux_session(ssh_client: SshClient, session_name: str, log_file: str)
 def rpi_tmux_terminal_output(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
     session_name = config.rpi_settings.tmux_session_name
     log_file_search_pattern = config.rpi_settings.tmux_log_path_pattern.format(timestamp='*')
-    tmux_log_file_path = _rpi_get_file_path(ssh_client, log_file_search_pattern)
+    tmux_log_file_path = rpi_get_file_path(ssh_client, log_file_search_pattern)
     _check_tmux_session(ssh_client, session_name, tmux_log_file_path)
 
     # Set up user termination thread
@@ -188,10 +190,43 @@ def _get_configurations(configurations_content: str, remote_username: str) -> Rp
     return RpiRemoteToolsConfig(**config_data)
 
 
+def rpi_check_project_exist_and_upload(ssh_client: SshClient, config: RpiRemoteToolsConfig, *, force_upload: bool) -> bool:
+    upload = force_upload
+    if not force_upload:
+        make_file = f'/home/{ssh_client.username}/{config.project_directory}/Makefile'
+        if not rpi_get_file_path(ssh_client, make_file, raise_no_file_exception=False):
+            print(f'Project Makefile not found on RPI: {make_file}. Upload code first.')
+            if input('Would you like to upload the code now? (y/n): ').strip().lower() not in {'y', 'yes'}:
+                return False
+            upload = True
+    if upload:
+        rpi_upload_app_files(ssh_client, config)
+    return True
+
+
+def rpi_install(rpi_command: RpiCommand) -> None:
+    if input('Do you want to do a "apt-get-update before installing apps"? (y/n): ').strip().lower() in {'y', 'yes'}:
+        print()
+        rpi_command.command('sudo apt-get update')
+        rpi_command.command('sudo apt-get install -y')
+        rpi_command.command('sudo apt-get upgrade -y')
+    else:
+        print()
+    rpi_command.command('sudo apt-get install -y tmux')
+    rpi_command.command('sudo apt install snapd -y')
+    rpi_command.command('sudo snap install snapd', ignore_stderr=True)
+    rpi_command.command('sudo snap install astral-uv --classic', ignore_stderr=True)
+
+
 def execute_commands(args: argparse.Namespace) -> None:
     with SshClientHandler(RPI_HOST_CONFIG_FILE) as ssh_client:
         config = _get_configurations(args.configurations, ssh_client.username)
         rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
+
+        if not rpi_check_project_exist_and_upload(ssh_client, config, force_upload=args.rpi_upload_code):
+            return
+        if args.rpi_install:
+            rpi_install(rpi_command)
         if args.rpi_stop_app or args.rpi_stop or args.rpi_restart:
             rpi_command.command('make stop-app')
             rpi_command.command('make kill-tmux')
@@ -203,8 +238,6 @@ def execute_commands(args: argparse.Namespace) -> None:
             rpi_command.command('make run')
         if args.rpi_tmux or args.rpi_run_app_in_tmux:
             rpi_tmux_terminal_output(ssh_client, config)
-        if args.rpi_upload_code:
-            rpi_upload_app_files(ssh_client, config)
         if args.rpi_check:
             rpi_command.command('make check')
 
@@ -214,6 +247,16 @@ def main() -> None:
     print(f'Python version: {sys.version_info.major}.{sys.version_info.minor}')
 
     parser = argparse.ArgumentParser(description='Raspberry Pi Remote Tools etc.')
+    parser.add_argument(
+        '--rpi-install',
+        action='store_true',
+        help='Installing system applications on Raspberry Pi device',
+    )
+    parser.add_argument(
+        '--rpi-upload-code',
+        action='store_true',
+        help='Copy code recursively to the Raspberry Pi device',
+    )
     parser.add_argument(
         '--rpi-check',
         action='store_true',
@@ -238,11 +281,6 @@ def main() -> None:
         '--rpi-run-app-in-tmux',
         action='store_true',
         help='Run application on Raspberry Pi device',
-    )
-    parser.add_argument(
-        '--rpi-upload-code',
-        action='store_true',
-        help='Copy code recursively to the Raspberry Pi device',
     )
     parser.add_argument(
         '--rpi-tmux',

@@ -1,14 +1,26 @@
-CONFIRM =  # To be assigned with make command: make install CONFIRM='--no-confirms'
-.PHONY: no_arguments install check stop-app stop start-service start restart run kill-tmux reboot
+INSTALLATION_TARGET =  # To be assigned with make command, e.g: make install INSTALLATION_TARGET="tmux"
+.PHONY: no_arguments install uninstall check stop-app stop-service start-service start restart run kill-tmux reboot
 
 no_arguments:
-	@echo "Missing argument. Arguments: install | check | stop-app | stop | start-service | restart | run | kill-tmux | reboot"
+	@echo "Missing argument. Arguments: install | check | stop-app | stop-service | restart | reboot"
 
 install:
-	python developer_tools/install.py --install ${CONFIRM} 
+	sudo apt-get update
+	@echo
+	sudo apt-get install -y
+	@echo
+	sudo apt-get upgrade -y
+	@echo
+	sudo apt-get install -y tmux
+	@echo
+	sudo apt install snapd -y
+	@echo
+	sudo snap install snapd
+	@echo
+	sudo snap install astral-uv --classic
 
 uninstall:
-	python developer_tools/uninstall.py --uninstall ${CONFIRM}
+	python developer_tools/uninstall.py --uninstall
 
 check:
 	python developer_tools/application_utilities.py --check

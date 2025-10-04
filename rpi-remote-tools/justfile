@@ -5,6 +5,14 @@ RPI_REMOTE_TOOLS_MODULE := "rpi_remote"
 list-recipes:
     @just --list --unsorted
 
+# Install necessary system applications on Raspberry Pi device
+install configurations="{}":
+    @just _rpi --rpi-install '{{configurations}}'
+
+# Copying application to Raspberry Pi device
+sync configurations="{}":
+    @just _rpi --rpi-upload-code '{{configurations}}'
+
 # Checking about application is already running on Raspberry Pi device.
 check configurations="{}":
     @just _rpi --rpi-check '{{configurations}}'
@@ -24,10 +32,6 @@ restart configurations="{}":
 # Starting application in a tmux session on Raspberry Pi device (first it will kill already running app) 
 run configurations="{}":
     @just _rpi --rpi-run-app-in-tmux '{{configurations}}'
-
-# Copying application to Raspberry Pi device
-sync configurations="{}":
-    @just _rpi --rpi-upload-code '{{configurations}}'
 
 # Live stream from Raspberry Pi device tmux session
 tmux configurations="{}":

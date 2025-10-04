@@ -287,7 +287,7 @@ class ApplicationProcess:
             return
 
         print(printout)
-        app_pid_filter = '.venv/bin/python3'
+        app_pid_filter = '.venv/bin/python'
         if not (proc_kill_list := [pid['PID'] for pid in proc_table if app_pid_filter in pid['COMMAND']]):
             error_message = f'There were no PIDs matching the pattern "{app_pid_filter}...{settings.application_script}"'
             raise ProcessKillError(error_message)
@@ -420,20 +420,21 @@ class ApplicationProcess:
 class InstallerTools:
     """Class with tools for installation and uninstallation."""
 
-    def __init__(self, *, skip_apt_get_update: bool = False) -> None:
+    def __init__(self, *, skip_apt_get_upgrade: bool = False) -> None:
         """Initialize installer tools."""
-        self._skip_apt_get_update = skip_apt_get_update
+        self._skip_apt_get_upgrade = skip_apt_get_upgrade
         self._reboot_required = False
 
     def set_reboot_required(self) -> None:
         self._reboot_required = True
 
-    def apt_get_update(self) -> None:
-        """Run apt-get update if not already done."""
-        if not self._skip_apt_get_update:
-            print('Running apt-get update')
+    def apt_get_upgrade(self) -> None:
+        """Run apt upgrade if not skipped."""
+        if not self._skip_apt_get_upgrade:
+            print('Running apt-get upgrade')
             run_command('sudo apt-get update')
-            self._skip_apt_get_update = True
+            run_command('sudo apt-get install -y')
+            run_command('sudo apt-get upgrade -y')
 
     @staticmethod
     def is_tmux_installed() -> bool:
