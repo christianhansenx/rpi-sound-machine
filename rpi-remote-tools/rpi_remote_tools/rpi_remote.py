@@ -208,11 +208,11 @@ def rpi_install(rpi_command: RpiCommand) -> None:
     if input('Do you want to do a "apt-get-update before installing apps"? (y/n): ').strip().lower() in {'y', 'yes'}:
         print()
         rpi_command.command('sudo apt-get update')
-        rpi_command.command('sudo apt-get install -y')
         rpi_command.command('sudo apt-get upgrade -y')
+        rpi_command.command('sudo apt-get install -y')
     else:
         print()
-    rpi_command.command('sudo apt-get install -y tmux')
+    rpi_command.command('sudo apt-get install tmux -y')
     rpi_command.command('sudo apt install snapd -y')
     rpi_command.command('sudo snap install snapd', ignore_stderr=True)
     rpi_command.command('sudo snap install astral-uv --classic', ignore_stderr=True)

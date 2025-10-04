@@ -7,11 +7,11 @@ no_arguments:
 install:
 	sudo apt-get update
 	@echo
-	sudo apt-get install -y
-	@echo
 	sudo apt-get upgrade -y
 	@echo
-	sudo apt-get install -y tmux
+	sudo apt-get install -y
+	@echo
+	sudo apt-get install tmux -y
 	@echo
 	sudo apt install snapd -y
 	@echo
@@ -20,7 +20,16 @@ install:
 	sudo snap install astral-uv --classic
 
 uninstall:
-	python developer_tools/uninstall.py --uninstall
+	python developer_tools/application_utilities.py --stop-application
+	python developer_tools/application_utilities.py --stop-service
+	@echo
+	tmux kill-server || true
+	@echo
+	sudo apt-get remove -y tmux
+	@echo
+	sudo snap remove astral-uv || true
+	@echo
+	sudo apt-get purge snapd -y
 
 check:
 	python developer_tools/application_utilities.py --check
