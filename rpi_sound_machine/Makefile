@@ -15,6 +15,8 @@ install:
 	@echo
 	sudo apt install snapd -y
 	@echo
+	snap changes  # Wait for snapd to be ready
+	@echo
 	sudo snap install snapd
 	@echo
 	sudo snap install astral-uv --classic

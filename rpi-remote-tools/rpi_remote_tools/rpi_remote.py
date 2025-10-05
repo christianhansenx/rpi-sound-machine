@@ -218,15 +218,7 @@ def rpi_install(rpi_command: RpiCommand) -> None:
     rpi_command.command(f'sudo {no_frontend} apt-get install tmux -y')
 
     rpi_command.command(f'sudo {no_frontend} apt install snapd -y')
-
-    # Wait for snapd to be ready
-    max_wait_time = 70
-    start_time = time.monotonic()
-    while time.monotonic() - start_time < max_wait_time:
-        if rpi_command.command('snap changes', ignore_stderr=True) == 0:
-            break
-        time.sleep(15)
-
+    rpi_command.command('snap changes')  # Wait for snapd to be ready
     rpi_command.command(f'sudo {no_frontend} snap install snapd', ignore_stderr=True)  # Ignore "already installed)"
     rpi_command.command(f'sudo {no_frontend} snap install astral-uv --classic', ignore_stderr=True)  # Ignore "already installed)"
 
