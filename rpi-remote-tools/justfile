@@ -9,6 +9,10 @@ list-recipes:
 install configurations="{}":
     @just _rpi --rpi-install '{{configurations}}'
 
+# Uninstall from Raspberry Pi device
+uninstall configurations="{}":
+    @just _rpi --rpi-uninstall '{{configurations}}'
+
 # Copying application to Raspberry Pi device
 sync configurations="{}":
     @just _rpi --rpi-upload-code '{{configurations}}'

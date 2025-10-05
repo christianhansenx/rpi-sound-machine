@@ -191,24 +191,27 @@ def _get_configurations(configurations_content: str, remote_username: str) -> Rp
     return RpiRemoteToolsConfig(**config_data)
 
 
-def rpi_check_project_exist_and_upload(ssh_client: SshClient, config: RpiRemoteToolsConfig, *, force_upload: bool) -> bool:
-    upload = force_upload
+def rpi_upload(ssh_client: SshClient, config: RpiRemoteToolsConfig, rpi_make_file: str, *, force_upload: bool) -> bool:
     if not force_upload:
-        make_file = f'/home/{ssh_client.username}/{config.project_directory}/Makefile'
-        if not rpi_get_file_path(ssh_client, make_file, raise_no_file_exception=False):
-            print(f'Project Makefile not found on RPI: {make_file}. Upload code first.')
-            if input('Would you like to upload the code now? (y/n): ').strip().lower() not in {'y', 'yes'}:
-                return False
-            upload = True
-    if upload:
-        rpi_upload_app_files(ssh_client, config)
-        print()
+        print(f'Project Makefile not found on RPI: {rpi_make_file}. Upload code first.')
+        if input('Would you like to SKIP uploading the code now? (Y/n): ').strip().lower() in {'y', 'yes'}:
+            return False
+    rpi_upload_app_files(ssh_client, config)
+    print()
     return True
+
+
+def rpi_uninstall(rpi_command: RpiCommand) -> None:
+    rpi_command.command('tmux kill-server || true', ignore_stderr=True)  # Ignore "no server running"
+    rpi_command.command('sudo apt-get remove -y tmux')
+    if rpi_command.command('snap changes', ignore_stderr=True) == 0:  # If snap is installed
+        rpi_command.command('sudo snap remove astral-uv || true')  # Ignore "not installed"
+    rpi_command.command('sudo apt-get purge snapd -y || true')
 
 
 def rpi_install(rpi_command: RpiCommand) -> None:
     no_frontend = 'DEBIAN_FRONTEND=noninteractive'  # To avoid some interactive questions
-    if input('Do you want to skip "apt-get-update"? (Y/n): ').strip() not in {'Y', 'YES'}:
+    if input('Do you want to skip "apt-get-update"? (Y/n): ').strip().lower() not in {'y', 'yes'}:
         print()
         rpi_command.command(f'sudo {no_frontend} apt-get update')
         rpi_command.command(f'sudo {no_frontend} apt-get upgrade -y')
@@ -216,30 +219,58 @@ def rpi_install(rpi_command: RpiCommand) -> None:
     else:
         print()
     rpi_command.command(f'sudo {no_frontend} apt-get install tmux -y')
-
     rpi_command.command(f'sudo {no_frontend} apt install snapd -y')
-    rpi_command.command('snap changes')  # Wait for snapd to be ready
+
+    # Wait for snapd to be ready
+    retries = 2
+    while True:
+        if rpi_command.command('snap changes', ignore_stderr=True) == 0:
+            break
+        time.sleep(20)
+        retries -= 1
+        if retries == 0:
+            rpi_command.command('snap changes')  # To raise error if last retry fails
+            break
+
     rpi_command.command(f'sudo {no_frontend} snap install snapd', ignore_stderr=True)  # Ignore "already installed)"
     rpi_command.command(f'sudo {no_frontend} snap install astral-uv --classic', ignore_stderr=True)  # Ignore "already installed)"
 
 
-def execute_commands(args: argparse.Namespace) -> None:
+def rpi_stop_all(rpi_command: RpiCommand, *, make_file_exist: bool = True) -> None:
+    if make_file_exist:
+        rpi_command.command('make stop-app')
+        rpi_command.command('make kill-tmux')
+        rpi_command.command('make stop-service')
+
+
+def execute_command(args: argparse.Namespace) -> None:
     with SshClientHandler(RPI_HOST_CONFIG_FILE) as ssh_client:
         config = _get_configurations(args.configurations, ssh_client.username)
         rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
+        rpi_make_file = f'/home/{ssh_client.username}/{config.project_directory}/Makefile'
+        make_file_exist = bool(rpi_get_file_path(ssh_client, rpi_make_file, raise_no_file_exception=False))
 
-        if not rpi_check_project_exist_and_upload(ssh_client, config, force_upload=args.rpi_upload_code):
+        if args.rpi_uninstall:
+            rpi_stop_all(rpi_command, make_file_exist=make_file_exist)
+            rpi_uninstall(rpi_command)
             return
         if args.rpi_install:
+            rpi_stop_all(rpi_command, make_file_exist=make_file_exist)
             rpi_install(rpi_command)
-        if args.rpi_stop_app or args.rpi_stop or args.rpi_restart:
+        if (  # Upload code if Makefile not found or --rpi-upload-code provided
+            (not make_file_exist or args.rpi_upload_code) and not
+            rpi_upload(ssh_client, config, rpi_make_file, force_upload=args.rpi_upload_code)
+        ):
+            return  # If operator chose not to upload code, exit here
+        if args.rpi_stop_app:
             rpi_command.command('make stop-app')
-            rpi_command.command('make kill-tmux')
         if args.rpi_stop:
-            rpi_command.command('make stop-service')
+            rpi_stop_all(rpi_command)
         if args.rpi_restart:
+            rpi_stop_all(rpi_command)
             rpi_command.command('make start-service')
         if args.rpi_run_app_in_tmux:
+            rpi_stop_all(rpi_command)
             rpi_command.command('make run')
         if args.rpi_tmux or args.rpi_run_app_in_tmux:
             rpi_tmux_terminal_output(ssh_client, config)
@@ -298,8 +329,13 @@ def main() -> None:
         required=True,
         help='JSON string with the configuration',
     )
+    parser.add_argument(
+        '--rpi-uninstall',
+        action='store_true',
+        help='Uninstalling system applications from Raspberry Pi device',
+    )
 
-    execute_commands(parser.parse_args())
+    execute_command(parser.parse_args())
 
 
 if __name__ == '__main__':
