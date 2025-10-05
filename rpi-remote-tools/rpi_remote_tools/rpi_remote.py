@@ -63,7 +63,7 @@ class RpiCommand:
     stdout: list[str] = field(default_factory=list)
     stderr: list[str] = field(default_factory=list)
 
-    def command(self, command: str, *, print_stdout: bool = True, ignore_stderr: bool = False) -> None:
+    def command(self, command: str, *, print_stdout: bool = True, ignore_stderr: bool = False) -> int:
         print(f'== Remote command to RPI: {command}')
         command_line = f'cd /home/{self.ssh_client.username}/{self.project_directory} && {command}'
         _stdin, stdout, stderr = self.ssh_client.client.exec_command(command_line)
@@ -78,6 +78,7 @@ class RpiCommand:
                 raise RpiRemoteCommandError(error)
             print(f'WARNING: {"\n".join(self.stderr)}')
         print()
+        return self.status
 
 
 def rpi_get_file_path(ssh_client: SshClient, search_pattern: str, *, raise_no_file_exception: bool = True) -> str | None:
@@ -201,21 +202,33 @@ def rpi_check_project_exist_and_upload(ssh_client: SshClient, config: RpiRemoteT
             upload = True
     if upload:
         rpi_upload_app_files(ssh_client, config)
+        print()
     return True
 
 
 def rpi_install(rpi_command: RpiCommand) -> None:
-    if input('Do you want to do a "apt-get-update before installing apps"? (y/n): ').strip().lower() in {'y', 'yes'}:
+    no_frontend = 'DEBIAN_FRONTEND=noninteractive'  # To avoid some interactive questions
+    if input('Do you want to skip "apt-get-update"? (Y/n): ').strip() not in {'Y', 'YES'}:
         print()
-        rpi_command.command('sudo apt-get update')
-        rpi_command.command('sudo apt-get upgrade -y')
-        rpi_command.command('sudo apt-get install -y')
+        rpi_command.command(f'sudo {no_frontend} apt-get update')
+        rpi_command.command(f'sudo {no_frontend} apt-get upgrade -y')
+        rpi_command.command(f'sudo {no_frontend} apt-get install -y')
     else:
         print()
-    rpi_command.command('sudo apt-get install tmux -y')
-    rpi_command.command('sudo apt install snapd -y')
-    rpi_command.command('sudo snap install snapd', ignore_stderr=True)
-    rpi_command.command('sudo snap install astral-uv --classic', ignore_stderr=True)
+    rpi_command.command(f'sudo {no_frontend} apt-get install tmux -y')
+
+    rpi_command.command(f'sudo {no_frontend} apt install snapd -y')
+
+    # Wait for snapd to be ready
+    max_wait_time = 70
+    start_time = time.monotonic()
+    while time.monotonic() - start_time < max_wait_time:
+        if rpi_command.command('snap changes', ignore_stderr=True) == 0:
+            break
+        time.sleep(15)
+
+    rpi_command.command(f'sudo {no_frontend} snap install snapd', ignore_stderr=True)  # Ignore "already installed)"
+    rpi_command.command(f'sudo {no_frontend} snap install astral-uv --classic', ignore_stderr=True)  # Ignore "already installed)"
 
 
 def execute_commands(args: argparse.Namespace) -> None:
@@ -231,7 +244,7 @@ def execute_commands(args: argparse.Namespace) -> None:
             rpi_command.command('make stop-app')
             rpi_command.command('make kill-tmux')
         if args.rpi_stop:
-            rpi_command.command('make stop-service')  # Stop service
+            rpi_command.command('make stop-service')
         if args.rpi_restart:
             rpi_command.command('make start-service')
         if args.rpi_run_app_in_tmux:
