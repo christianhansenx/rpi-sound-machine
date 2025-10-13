@@ -194,7 +194,7 @@ def _get_configurations(configurations_content: str, remote_username: str) -> Rp
 def rpi_upload(ssh_client: SshClient, config: RpiRemoteToolsConfig, rpi_make_file: str, *, force_upload: bool) -> bool:
     if not force_upload:
         print(f'Project Makefile not found on RPI: {rpi_make_file}. Upload code first.')
-        if input('Would you like to SKIP uploading the code now? (Y/n): ').strip().lower() in {'y', 'yes'}:
+        if input('Would you like to SKIP uploading the code for now? (Y/n): ').strip().lower() in {'y', 'yes'}:
             return False
     rpi_upload_app_files(ssh_client, config)
     print()
