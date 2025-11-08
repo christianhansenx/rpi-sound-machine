@@ -4,14 +4,14 @@
 
 ## Background idea of this project
 
-Sometimes there's a very low-frequency noise in my apartment, which I believe is coming from installations or equipment in the building. It's very disturbing.
+Sometimes there's a very low-frequency noise in my apartment, which I believe is coming from installations or equipment in the building. It can be very disturbing.
 This made my make this sound machine for playing relaxing sounds that help drown out the low hum.
 
 In general the issue about low-frequency hum is a quite widespread problem: [Noise & Health](https://journals.lww.com/nohe/fulltext/2004/06230/low_frequency_noise_and_annoyance.6.aspx)
 
 ## User Guide
 
-Connect Raspberry Pi to a loudspeaker (loudspeaker with aux input).
+Connect Raspberry Pi to a loudspeaker (loudspeaker with aux input).<br>
 *Note: in this user guide the Raspberry Pi hostname is **pisound** (it can be any name you choose).*
 
 
@@ -78,7 +78,7 @@ If you are on Windows, then run the **just** recipes in Git Bash (download from 
 Instead of having to do manually SSH into the RPI, then many operations can be applied by using the **just rpi** recipes in **rpi-remote-tools/justfile**.<br>
 To get a list of RPI remote tool commands then execute ```just rpi``` without arguments.
 
-Example of running a command (tmux session): ```just rpi tmux```.
+Example of running a command: ```just rpi check```.
 
 Some of the connections to the RPI are using [tmux](https://github.com/tmux/tmux/wiki) terminal on the RPI.<br>
 
