@@ -34,16 +34,14 @@ class SshClient:
         """Provide ssh connection name (username@hostname)."""
         return self._connection
 
-    def upload_recursive(self, root_directory: str, exclude_patterns: list[str] | None) -> None:
+    def upload_recursive(self, local_dir: Path, remote_folder: str, exclude_patterns: list[str] | None) -> None:
         """Upload files to remote device like rsync."""
         exclude = exclude_patterns or []
-        script_dir = Path(__file__).parent
-        local_dir = (script_dir / '..' / '..' / root_directory).resolve()
 
         # Use PurePosixPath for remote paths
-        remote_dir = PurePosixPath(f'/home/{self.username}') / root_directory
+        remote_dir = PurePosixPath(f'{remote_folder}')
 
-        print(f'Syncing {root_directory} to {self.connection}:{remote_dir}')
+        print(f'Syncing {local_dir} to {self.connection}: {remote_dir}')
         self._sftp = self.client.open_sftp()
 
         def _upload_dir(local_path: Path, remote_path: PurePosixPath) -> None:
@@ -66,13 +64,15 @@ class SshClient:
                 remote_mtime = remote_attr.st_mtime
                 if int(local_mtime) > int(remote_mtime):  # Local file is newer
                     print(f'  Updating remote file: {remote_file}')
-                    self._sftp.put(str(local_file), str(remote_file))
-                    self._sftp.utime(str(remote_file), (local_mtime, local_mtime))
+                    _upload_file(local_file, remote_file, local_mtime)
             except OSError:
                 # File does not exist remotely, so upload it
                 print(f'  Uploading new file: {remote_file}')
-                self._sftp.put(str(local_file), str(remote_file))
-                self._sftp.utime(str(remote_file), (local_mtime, local_mtime))
+                _upload_file(local_file, remote_file, local_mtime)
+
+        def _upload_file(local_file: Path, remote_file: PurePosixPath, local_mtime: float) -> None:
+            self._sftp.put(str(local_file), str(remote_file))
+            self._sftp.utime(str(remote_file), (local_mtime, local_mtime))
 
         self._delete_extra_remote_files(local_dir, remote_dir, exclude)
         _upload_dir(local_dir, remote_dir)
@@ -135,7 +135,7 @@ class SshClientHandler:
             An SshClient instance with an active SSH connection.
 
         """
-        print(f'\nCreate SSH connection to {self._config['username']}@{self._config['hostname']}')
+        print(f'Create SSH connection to {self._config['username']}@{self._config['hostname']}\n')
         client = paramiko.SSHClient()
 
         # Linting: S507 Paramiko call with policy set to automatically trust the unknown host key
@@ -158,8 +158,6 @@ class SshClientHandler:
         """Close SSH connection."""
         if self._client:
             self._client.client.close()
-            print()
-            print('SSH connection is closed')
 
     @staticmethod
     def _load_or_create_config(config_file: Path) -> None:

@@ -1,14 +1,14 @@
 """Tool functions for RPI Remote control."""
 import argparse
+import configparser
 import enum
-import errno
 import json
 import sys
 import threading
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 
-from paramiko import SFTPClient
 from pydantic import BaseModel, Field
 
 from .ssh_client import SshClient, SshClientHandler
@@ -16,21 +16,16 @@ from .ssh_client import SshClient, SshClientHandler
 UPLOAD_EXCLUDES_FOLDERS = ['.venv', '.git', '.ruff_cache', '__pycache__']
 UPLOAD_EXCLUDES_FILES = []  # Add specific file names here if needed
 RPI_HOST_CONFIG_FILE = Path('rpi_host_config.yaml')
-
-# Linting: S108 Probable insecure usage of temporary file or directory: "/tmp/"
-TMUX_LOG_PATH = '/tmp/{file_name}.tmux-log'  # noqa: S108
-
-
-class StartRpiTmuxError(Exception):
-    """Could not start tmux session on RPI."""
+RPI_SETTINGS_FILE = 'settings.ini'
+RPI_SETTINGS_FILE_SETTINGS_KEYWORD = 'settings'
 
 
-class KillRpiProcessError(Exception):
-    """Could not kill application on RPI."""
+class RpiRemoteCommandError(Exception):
+    """Execution error on RPI."""
 
 
-class InstallRpiTmuxError(Exception):
-    """Could not install tmux on RPI."""
+class RpiTmuxError(Exception):
+    """tmux issue."""
 
 
 class KillSignals(enum.StrEnum):
@@ -41,271 +36,246 @@ class KillSignals(enum.StrEnum):
     SIGKILL = '-9'  # Force kill
 
 
+class _RpiSettings(BaseModel):
+    """Pydantic model for RPI settings."""
+
+    application_script: str = Field(..., description='The main application file to run on the RPI.')
+    tmux_session_name: str = Field(..., description='The tmux session name.')
+    tmux_log_path_pattern: str = Field(..., description='The log file path pattern for the tmux session.')
+
+
 class RpiRemoteToolsConfig(BaseModel):
     """Pydantic model for rpi-remote-tools configuration."""
 
-    local_project_directory: str = Field(..., description='The local project directory to sync to the RPI.')
-    application_file: str = Field(..., description='The main application file to run on the RPI.')
-    tmux_session_name: str = Field(..., description='The name of the tmux session to use on the RPI.')
+    project_directory: str = Field(..., description='The local project directory to sync to the RPI.')
+    local_project_path: Path = Field(..., description='The local path to sync to RPI.')
+    remote_project_folder: str = Field(..., description='The project path on the RPI.')
+    rpi_settings: _RpiSettings = Field(..., description='Setting for the application to be located on RPI.')
 
 
-def rpi_check_running_app(ssh_client: SshClient, process_name: str, *, message_no_process: bool = True) -> list[str]:
-    """Check about processes are running.
+@dataclass
+class RpiCommand:
+    """Run command on RPI."""
 
-    Returns:
-        list of running process id's
+    ssh_client: SshClient
+    project_directory: str
+    status: int = field(init=False)
+    stdout: list[str] = field(default_factory=list)
+    stderr: list[str] = field(default_factory=list)
 
-    """
-    proc_ids = _rpi_check_running_app(ssh_client, process_name)
-    valid_proc_ids = [pid for pid in proc_ids if pid]
-    if valid_proc_ids:
-        print(f'Process "{process_name}" running')
-        print(f'Found existing PID(s): {", ".join(valid_proc_ids)}')
-    elif message_no_process:
-        print(f'No existing process found of "{ssh_client.connection} {process_name}"')
-    return valid_proc_ids
-
-
-def _rpi_check_running_app(ssh_client: SshClient, process_name: str) -> list[str]:
-    _stdin, stdout, _stderr = ssh_client.client.exec_command(f'pgrep -f "{process_name}"')
-    proc_ids = stdout.read().decode('utf-8').strip().split('\n')
-    return [pid for pid in proc_ids if pid]
-
-
-def rpi_kill_app(ssh_client: SshClient, process_name: str, *, msg_no_kill: bool = True) -> None:
-    """Stop application on RPI.
-
-    Raises:
-        KillRpiProcessError: If application could not get killed.
-
-    """
-    if not (proc_ids := _rpi_check_running_app(ssh_client, process_name)):
-        if msg_no_kill:
-            print('No running process found, nothing to kill')
-        return
-    print(f'Killing process "{process_name}" with PID(s): {", ".join(proc_ids)}')
-    kill_error = 'unknown error'
-    for kill_signal in KillSignals:
-        for pid in proc_ids:
-            if _rpi_check_process_id(ssh_client, pid):
-                _stdin, stdout, stderr_kill = ssh_client.client.exec_command(f'kill {kill_signal.value} {pid}')
-                exit_status = stdout.channel.recv_exit_status()
-                if exit_status != 0:
-                    error = (
-                        f'Failed to kill "{process_name}" (PID {pid}) with {kill_signal.name}: '
-                        f'{stderr_kill.read().decode('utf-8').strip()}'
-                    )
-                    raise KillRpiProcessError(error)
-                time.sleep(0.2)
-        if not (kill_error := _rpi_wait_no_kill_error(ssh_client, process_name, kill_signal)):
-            break
-
-    else:
-        raise KillRpiProcessError(kill_error)
-    print(f'Successfully killed "{process_name}" with {kill_signal.name}')
+    def command(self, command: str, *, print_stdout: bool = True, ignore_stderr: bool = False) -> int:
+        print(f'== Remote command to RPI: {command}')
+        command_line = f'cd /home/{self.ssh_client.username}/{self.project_directory} && {command}'
+        _stdin, stdout, stderr = self.ssh_client.client.exec_command(command_line)
+        self.status = stdout.channel.recv_exit_status()
+        self.stdout = stdout.read().decode('utf-8').rstrip().split('\n')
+        self.stderr = stderr.read().decode('utf-8').rstrip().split('\n')
+        if print_stdout and self.stdout[0]:
+            print(f'{"\n".join(self.stdout)}')
+        if self.stderr[0]:
+            if not ignore_stderr:
+                error = f'{"\n".join(self.stderr)}\nRPI command line: {command_line}'
+                raise RpiRemoteCommandError(error)
+            print(f'WARNING: {"\n".join(self.stderr)}')
+        print()
+        return self.status
 
 
-def _rpi_wait_no_kill_error(ssh_client: SshClient, process_name: str, kill_signal: KillSignals) -> str | None:
-    kill_error = None
-    check_reties = 10
-    while True:
-        if not (proc_ids := _rpi_check_running_app(ssh_client, process_name)):
-            break
-        check_reties -= 1
-        if check_reties < 0:
-            kill_error = f'Failed to kill "{process_name}" with {kill_signal.name}, PID(s) still alive: {", ".join(proc_ids)}'
-            print(f'{kill_error}')
-            break
-        time.sleep(0.2)
-    return kill_error
+def rpi_get_file_path(ssh_client: SshClient, search_pattern: str, *, raise_no_file_exception: bool = True) -> str | None:
+    _stdin, stdout, stderr = ssh_client.client.exec_command(f'ls {search_pattern}')
+    status = stdout.channel.recv_exit_status()
+    if status:
+        no_file_found = 2
+        if status != no_file_found:
+            error = f'Searching files on RPI: {search_pattern}, stderr={stderr.read().decode('utf-8').strip()}'
+            raise RpiTmuxError(error)
+        error = f'File not found: {search_pattern}'
+        if raise_no_file_exception:
+            raise RpiTmuxError(error)
+    log_files = stdout.read().decode('utf-8').strip().split('\n')
+    log_files.sort()
+    return log_files[-1]  # File name with most recent time stamp in the name
 
 
-def _rpi_check_process_id(ssh_client: SshClient, proc_id: str) -> bool:
-    """Check about process is running.
-
-    Returns:
-        True if process is running.
-
-    """
-    _stdin, stdout, _stderr = ssh_client.client.exec_command(f'ps -p {proc_id}')
-    exit_status = stdout.channel.recv_exit_status()
-    return exit_status == 0
-
-
-def rpi_tmux(
-        ssh_client: SshClient,
-        process_name: str,
-        config: RpiRemoteToolsConfig,
-        *,
-        restart_application: bool = False,
-) -> None:
-    """Open tmux session on RPI.
-
-    If restart_application is True, the application will be started in the tmux session.
+def _check_tmux_session(ssh_client: SshClient, session_name: str, log_file: str) -> None:
+    """Check tmux session on RPI.
 
     Raises:
-        StartRpiTmuxError: If tmux session could not be started.
+        RpiTmuxError: If tmux session issue.
 
     """
-    tmux_log_file_path = TMUX_LOG_PATH.format(file_name=config.local_project_directory)
-
-    # Restart session if required
-    _install_tmux(ssh_client)
-    tmux_command = None
-    if restart_application:
-        tmux_command = (
-            f'tmux kill-session -t {config.tmux_session_name} 2>/dev/null; '
-            f'rm {tmux_log_file_path} 2>/dev/null; '
-            f'tmux new-session -d -s {config.tmux_session_name} \\; '
-            f'pipe-pane -t {config.tmux_session_name}:0.0 -o "cat >> {tmux_log_file_path}"'
+    rpi_get_file_path(ssh_client, log_file)
+    _stdin, stdout, stderr = ssh_client.client.exec_command(f'tmux has-session -t {session_name}')
+    exit_code = stdout.channel.recv_exit_status()
+    if exit_code != 0:
+        error = (
+            f'There is no active tmux session "{session_name}" on {ssh_client.connection}:'
+            f'\n{stderr.read().decode('utf-8').strip()}'
         )
-        ssh_client.client.exec_command(tmux_command)
-
-    else:
-        _stdin, stdout, stderr = ssh_client.client.exec_command(f'tmux has-session -t {config.tmux_session_name}')
-        exit_code = stdout.channel.recv_exit_status()
-        if exit_code != 0:
-            error = (
-                f'Could not open tmux session "{config.tmux_session_name}" on {ssh_client.connection}:'
-                f'\n{stderr.read().decode().strip()}',
-            )
-            raise StartRpiTmuxError(error)
-        tmux_check_pipe = f'tmux display-message -p -t {config.tmux_session_name}:0.0 "#{{pane_pipe}}"'
-        _stdin, stdout, stderr = ssh_client.client.exec_command(tmux_check_pipe)
-        if stdout.read().decode()[0] != '1':
-            tmux_command = (
-                f'rm {tmux_log_file_path} 2>/dev/null; '
-                f'tmux pipe-pane -t {config.tmux_session_name}:0.0 -o "cat >> {tmux_log_file_path}"'
-            )
-
-    if tmux_command:
-        ssh_client.client.exec_command(tmux_command)
-        time.sleep(1)
-
-    _tmux_terminal(ssh_client, process_name, tmux_log_file_path, config, restart_application=restart_application)
+        raise RpiTmuxError(error)
+    tmux_check_pipe = f'tmux display-message -p -t {session_name}:0.0 "#{{pane_pipe}}"'
+    _stdin, stdout, _stderr = ssh_client.client.exec_command(tmux_check_pipe)
+    if stdout.read().decode()[0] != '1':
+        error = f'There is no tmux piping to log file for session "{session_name}" on {ssh_client.connection}'
+        raise RpiTmuxError(error)
 
 
-def _tmux_terminal(
-        ssh_client: SshClient, process_name: str,
-        tmux_log_file_path: str,
-        config: RpiRemoteToolsConfig,
-        *,
-        restart_application: bool,
-) -> None:
-    # start sftp
-    max_retries = 10
-    sftp_client = None
-    for _ in range(max_retries):
-        try:
-            sftp_client = ssh_client.client.open_sftp()
-            sftp_client.stat(tmux_log_file_path)
-            break
-        except OSError as e:
-            if e.errno == errno.ENOENT:  # File not found
-                time.sleep(0.5)
-            else:
-                raise
-    else:
-        error = f'Failed to find log file on rpi: {tmux_log_file_path}'
-        raise FileNotFoundError(error)
-
-    # Start application (if required)
-    if restart_application:
-        remote_dir = f'/home/{ssh_client.username}/{config.local_project_directory}'
-        command = f'cd {remote_dir} && uv run --no-group dev {config.application_file}'
-        ssh_client.client.exec_command(f'tmux send-keys -t {config.tmux_session_name} "{command}" C-m')
-        print(f'Application {config.application_file} on {ssh_client.connection} has been started')
-
-    _tmux_terminal_streaming(ssh_client, process_name, tmux_log_file_path, config, sftp_client)
-
-
-def _tmux_terminal_streaming(
-    ssh_client: SshClient,
-    process_name: str,
-    tmux_log_file_path: str,
-    config: RpiRemoteToolsConfig,
-    sftp_client: SFTPClient,
-) -> None:
-    tmux_session_msg = (
-        f'\ntmux session "{config.tmux_session_name}" is running on {ssh_client.connection}, to access it from rpi terminal:'
-        f' tmux attach -t {config.tmux_session_name}'
-    )
+def rpi_tmux_terminal_output(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
+    session_name = config.rpi_settings.tmux_session_name
+    log_file_search_pattern = config.rpi_settings.tmux_log_path_pattern.format(timestamp='*')
+    tmux_log_file_path = rpi_get_file_path(ssh_client, log_file_search_pattern)
+    _check_tmux_session(ssh_client, session_name, tmux_log_file_path)
 
     # Set up user termination thread
     stop_event = threading.Event()
 
     def wait_for_enter() -> None:
         input()  # Waits until the user presses Enter
-        print(f'{tmux_session_msg}')
         stop_event.set()
 
     input_thread = threading.Thread(target=wait_for_enter, daemon=True)
     input_thread.start()
 
+    sftp_client = ssh_client.client.open_sftp()
+    sftp_client.stat(tmux_log_file_path)
+
     # tmux streaming
     remote_tmux_log = sftp_client.open(tmux_log_file_path, 'r', bufsize=4096)
-    print(f'{tmux_session_msg}')
-    check_app_reties = 10
-    while True:
-        if _rpi_check_running_app(ssh_client, process_name):
-            break
-        check_app_reties -= 1
-        if check_app_reties < 0:
-            print(f'WARNING: No running process found of "{process_name}"')
-            break
-        time.sleep(0.2)
     print('Press Enter to exit remote tmux session.\n')
     try:
+        error_check_time_interval = 3
+        error_check_timer_start = time.monotonic()
         while not stop_event.is_set():
             line = remote_tmux_log.readline()
             if line:
                 sys.stdout.write(line)
                 sys.stdout.flush()
-            else:
-                time.sleep(0.5)
+            if time.monotonic() - error_check_timer_start > error_check_time_interval:
+                _check_tmux_session(ssh_client, session_name, tmux_log_file_path)
+                error_check_timer_start = time.monotonic()
+            time.sleep(0.02)
     finally:
         remote_tmux_log.close()
         sftp_client.close()
-        print('tmux closed')
 
 
-def _install_tmux(ssh_client: SshClient) -> None:
-    """Installs tmux on the remote Raspberry Pi (if not already installed).
-
-    Raises:
-        InstallRpiTmuxError: If installation fails.
-
-    """
-    _stdin, stdout, stderr = ssh_client.client.exec_command('which tmux')
-    exit_code = stdout.channel.recv_exit_status()
-    if exit_code != 0:
-        print(f'Installing tmux on {ssh_client.connection}')
-        _stdin, stdout, stderr = ssh_client.client.exec_command('sudo apt install tmux -y')
-        stdout_output = stdout.read().decode()
-        stderr_output = stderr.read().decode()
-        for line in stdout_output.splitlines():
-            print(f'\t{line}')
-        for line in stderr_output.splitlines():
-            print(f'\t{line}')
-        exit_code = stdout.channel.recv_exit_status()
-        if exit_code != 0:
-            error = f'Installation failed on {ssh_client.connection}:\n{stderr_output.strip()}'
-            raise InstallRpiTmuxError(error)
-
-
-def rpi_upload_app(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
+def rpi_upload_app_files(ssh_client: SshClient, config: RpiRemoteToolsConfig) -> None:
     """Upload application files to RPI."""
     all_exclude_patterns = UPLOAD_EXCLUDES_FOLDERS + UPLOAD_EXCLUDES_FILES
-    ssh_client.upload_recursive(config.local_project_directory, all_exclude_patterns)
+    ssh_client.upload_recursive(config.local_project_path, config.remote_project_folder, all_exclude_patterns)
 
 
-def _get_configurations(configurations_content: str) -> RpiRemoteToolsConfig:
+def _get_configurations(configurations_content: str, remote_username: str) -> RpiRemoteToolsConfig:
     try:
         config_data = json.loads(configurations_content)
     except json.JSONDecodeError as exception:
         error_msg = f'Error decoding configurations as JSON:\n{configurations_content}\n'
         raise ValueError(error_msg) from exception
+    config_data['remote_project_folder'] = f'/home/{remote_username}/{config_data['project_directory']}'
+    local_project_path = (Path(__file__).parent / '..' / '..' / config_data['project_directory']).resolve()
+    config_data['local_project_path'] = local_project_path
+
+    settings_file = local_project_path / RPI_SETTINGS_FILE
+    if not Path(settings_file).exists():
+        error = f'Settings file not found: {settings_file}'
+        raise FileNotFoundError(error)
+    settings_data = configparser.ConfigParser()
+    settings_data.read(settings_file)
+    settings = settings_data[RPI_SETTINGS_FILE_SETTINGS_KEYWORD]
+    settings['tmux_log_path_pattern'] = settings['tmux_log_path_pattern'].format(
+        session_name=settings['tmux_session_name'],
+        timestamp=r'{timestamp}',
+    )
+    config_data['rpi_settings'] = _RpiSettings(**settings)
+
     return RpiRemoteToolsConfig(**config_data)
+
+
+def rpi_upload(ssh_client: SshClient, config: RpiRemoteToolsConfig, rpi_make_file: str, *, force_upload: bool) -> bool:
+    if not force_upload:
+        print(f'Project Makefile not found on RPI: {rpi_make_file}. Upload code first.')
+        if input('Would you like to SKIP uploading the code for now? (Y/n): ').strip().lower() in {'y', 'yes'}:
+            return False
+    rpi_upload_app_files(ssh_client, config)
+    print()
+    return True
+
+
+def rpi_uninstall(rpi_command: RpiCommand) -> None:
+    rpi_command.command('tmux kill-server || true', ignore_stderr=True)  # Ignore "no server running"
+    rpi_command.command('sudo apt-get remove -y tmux')
+    if rpi_command.command('snap changes', ignore_stderr=True) == 0:  # If snap is installed
+        rpi_command.command('sudo snap remove astral-uv || true')  # Ignore "not installed"
+    rpi_command.command('sudo apt-get purge snapd -y || true')
+
+
+def rpi_install(rpi_command: RpiCommand) -> None:
+    no_frontend = 'DEBIAN_FRONTEND=noninteractive'  # To avoid some interactive questions
+    if input('Do you want to skip "apt-get-update"? (Y/n): ').strip().lower() not in {'y', 'yes'}:
+        print()
+        rpi_command.command(f'sudo {no_frontend} apt-get update')
+        rpi_command.command(f'sudo {no_frontend} apt-get upgrade -y')
+        rpi_command.command(f'sudo {no_frontend} apt-get install -y')
+    else:
+        print()
+    rpi_command.command(f'sudo {no_frontend} apt-get install tmux -y')
+    rpi_command.command(f'sudo {no_frontend} apt install snapd -y')
+
+    # Wait for snapd to be ready
+    retries = 2
+    while True:
+        if rpi_command.command('snap changes', ignore_stderr=True) == 0:
+            break
+        time.sleep(20)
+        retries -= 1
+        if retries == 0:
+            rpi_command.command('snap changes')  # To raise error if last retry fails
+            break
+
+    rpi_command.command(f'sudo {no_frontend} snap install snapd', ignore_stderr=True)  # Ignore "already installed)"
+    rpi_command.command(f'sudo {no_frontend} snap install astral-uv --classic', ignore_stderr=True)  # Ignore "already installed)"
+
+
+def rpi_stop_all(rpi_command: RpiCommand, *, make_file_exist: bool = True) -> None:
+    if make_file_exist:
+        rpi_command.command('make stop-app')
+        rpi_command.command('make kill-tmux')
+        rpi_command.command('make stop-service')
+
+
+def execute_command(args: argparse.Namespace) -> None:
+    with SshClientHandler(RPI_HOST_CONFIG_FILE) as ssh_client:
+        config = _get_configurations(args.configurations, ssh_client.username)
+        rpi_command = RpiCommand(ssh_client=ssh_client, project_directory=config.project_directory)
+        rpi_make_file = f'/home/{ssh_client.username}/{config.project_directory}/Makefile'
+        make_file_exist = bool(rpi_get_file_path(ssh_client, rpi_make_file, raise_no_file_exception=False))
+
+        if args.rpi_uninstall:
+            rpi_stop_all(rpi_command, make_file_exist=make_file_exist)
+            rpi_uninstall(rpi_command)
+            return
+        if args.rpi_install:
+            rpi_stop_all(rpi_command, make_file_exist=make_file_exist)
+            rpi_install(rpi_command)
+        if (  # Upload code if Makefile not found or --rpi-upload-code provided
+            (not make_file_exist or args.rpi_upload_code) and not
+            rpi_upload(ssh_client, config, rpi_make_file, force_upload=args.rpi_upload_code)
+        ):
+            return  # If operator chose not to upload code, exit here
+        if args.rpi_stop_app:
+            rpi_command.command('make stop-app')
+        if args.rpi_stop:
+            rpi_stop_all(rpi_command)
+        if args.rpi_restart:
+            rpi_stop_all(rpi_command)
+            rpi_command.command('make start-service')
+        if args.rpi_run_app_in_tmux:
+            rpi_stop_all(rpi_command)
+            rpi_command.command('make run')
+        if args.rpi_tmux or args.rpi_run_app_in_tmux:
+            rpi_tmux_terminal_output(ssh_client, config)
+        if args.rpi_check:
+            rpi_command.command('make check')
 
 
 def main() -> None:
@@ -314,24 +284,39 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description='Raspberry Pi Remote Tools etc.')
     parser.add_argument(
-        '--rpi-check-app',
+        '--rpi-install',
+        action='store_true',
+        help='Installing system applications on Raspberry Pi device',
+    )
+    parser.add_argument(
+        '--rpi-upload-code',
+        action='store_true',
+        help='Copy code recursively to the Raspberry Pi device',
+    )
+    parser.add_argument(
+        '--rpi-check',
         action='store_true',
         help='Check about logger application is already running on Raspberry Pi device',
     )
     parser.add_argument(
-        '--rpi-kill-app',
+        '--rpi-stop-app',
         action='store_true',
         help='Kill application on Raspberry Pi device',
     )
     parser.add_argument(
-        '--rpi-run-app',
+        '--rpi-stop',
         action='store_true',
-        help='Run application on Raspberry Pi device',
+        help='Stop application and service on Raspberry Pi device',
     )
     parser.add_argument(
-        '--rpi-copy-code',
+        '--rpi-restart',
         action='store_true',
-        help='Copy code recursively to the Raspberry Pi device',
+        help='Restart application service on Raspberry Pi device',
+    )
+    parser.add_argument(
+        '--rpi-run-app-in-tmux',
+        action='store_true',
+        help='Run application on Raspberry Pi device',
     )
     parser.add_argument(
         '--rpi-tmux',
@@ -344,25 +329,13 @@ def main() -> None:
         required=True,
         help='JSON string with the configuration',
     )
+    parser.add_argument(
+        '--rpi-uninstall',
+        action='store_true',
+        help='Uninstalling system applications from Raspberry Pi device',
+    )
 
-    args = parser.parse_args()
-    config = _get_configurations(args.configurations)
-    rpi_application_process_name = f'python3 {config.application_file}'
-
-    with SshClientHandler(RPI_HOST_CONFIG_FILE) as ssh_client:
-        if args.rpi_check_app:
-            rpi_check_running_app(ssh_client, rpi_application_process_name)
-        elif args.rpi_kill_app:
-            rpi_kill_app(ssh_client, rpi_application_process_name)
-        elif args.rpi_run_app:
-            rpi_kill_app(ssh_client, rpi_application_process_name, msg_no_kill=False)
-            rpi_tmux(ssh_client, rpi_application_process_name, config, restart_application=True)
-        elif args.rpi_tmux:
-            rpi_tmux(ssh_client, rpi_application_process_name, config)
-        elif args.rpi_copy_code:
-            rpi_kill_app(ssh_client, rpi_application_process_name, msg_no_kill=False)
-            rpi_upload_app(ssh_client, config)
-            rpi_tmux(ssh_client, rpi_application_process_name, config, restart_application=True)
+    execute_command(parser.parse_args())
 
 
 if __name__ == '__main__':

@@ -1,13 +1,19 @@
 """Raspberry Pi Sound Machine - A web-based sound machine using Flask and Pygame."""
 import json
+import os
+import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from threading import Timer
+from zoneinfo import ZoneInfo
 
-import pygame
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+import pygame  # noqa: I001 Import block is un-sorted or un-formatted
 from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, url_for
 from werkzeug.utils import secure_filename
 from werkzeug.wrappers import Response as BaseResponse
+
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -269,7 +275,12 @@ def favicon() -> BaseResponse:
     return send_from_directory(str(static_folder), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 
-if __name__ == '__main__':
+def main() -> None:
+    """Prepare and start Flask application."""
+    print(f'UTC time: {datetime.now(tz=ZoneInfo("UTC")).strftime("%Y-%m-%d %H:%M:%S")}')
+    print(f'Python version: {sys.version_info.major}.{sys.version_info.minor}')
+    print()
+
     SOUND_DIR.mkdir(exist_ok=True)
     if not FAVORITES_FILE.is_file():
         FAVORITES_FILE.touch()
@@ -278,3 +289,7 @@ if __name__ == '__main__':
     sound_control.load_volume()
 
     app.run(host='0.0.0.0', port=5000, debug=False)  # noqa: S104 Possible binding to all interfaces
+
+
+if __name__ == '__main__':
+    main()
