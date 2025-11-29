@@ -15,8 +15,8 @@ Connect Raspberry Pi to a loudspeaker (loudspeaker with aux input).<br>
 *Note: in this user guide the Raspberry Pi hostname is **pisound** (it can be any name you choose).*
 
 
-Copy **rpi_sound_machine** folder from this repository to Raspberry Pi device **/home/~**.<br>
-ssh into the Raspberry Pi device **cd** to **/home/~/rpi_sound_machine** folder.
+Copy **rpi_sound_machine** folder from this repository to Raspberry Pi device **/home/~**<br>
+ssh into the Raspberry Pi device and **cd** to **/home/~/rpi_sound_machine** folder.
 
 Install necessary applications with:<br>
 ```make install```
@@ -76,10 +76,42 @@ If you are on Windows, then run the **just** recipes in Git Bash (download from 
 ### Interfacing with Raspberry Pi from PC
 
 Instead of having to do manually SSH into the RPI, then many operations can be applied by using the **just rpi** recipes in **rpi-remote-tools/justfile**.<br>
-To get a list of RPI remote tool commands then execute ```just rpi``` without arguments.
+To get a list of RPI remote tool commands then execute ```just rpi``` (on the PC) without arguments.
 
 Example of running a command: ```just rpi check```.
+```
+Create SSH connection to pi@pisound
+
+== Remote command to RPI: make stop-app
+python developer_tools/application_utilities.py --stop-application
+UTC time: 2025-11-29 12:38:21
+Python version: 3.11
+Running processes of "sound_machine.py":
+  USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+  pi        103220  0.4  3.1 217756 28816 ?        Sl   12:36   0:00 /snap/astral-uv/1086/bin/uv run --no-group dev sound_machine.py
+  pi        103251  5.3  4.7 233252 44072 ?        Sl   12:36   0:07 /home/pi/rpi_sound_machine/.venv/bin/python3 sound_machine.py
+Killing process ".venv/bin/python...sound_machine.py". PID(s): 103251
+Failed to kill "sound_machine.py" (PID 103251) with SIGTERM
+Successfully killed PID 103251 with SIGINT
+
+== Remote command to RPI: make kill-tmux
+python developer_tools/application_utilities.py --kill-tmux
+UTC time: 2025-11-29 12:38:25
+Python version: 3.11
+There is no tmux session for "sound" to close!
+
+== Remote command to RPI: make stop-service
+python developer_tools/application_utilities.py --stop-service
+UTC time: 2025-11-29 12:38:25
+Python version: 3.11
+Removing service sound-machine.service
+
+== Remote command to RPI: make start-service
+python developer_tools/application_utilities.py --start-service
+UTC time: 2025-11-29 12:38:28
+Python version: 3.11
+Service "sound-machine.service" has been started successfully!
+```
 
 Some of the connections to the RPI are using [tmux](https://github.com/tmux/tmux/wiki) terminal on the RPI.<br>
-
 When running tmux from tools terminal, it can be stopped by pressing **enter** key.
