@@ -2,6 +2,10 @@
 
 ![sound-machine](sound_machine.jpg)
 
+## Application Description
+
+This project turns a Raspberry Pi into a customizable sound machine. Users can upload their own sound files and play them through a web interface, creating a personalized soundscape to mask unwanted noise or for relaxation. The interface allows for playing multiple sounds simultaneously, managing a list of favorite sounds, and controlling playback with options to pause, resume, and stop all sounds.
+
 ## Background idea of this project
 
 Sometimes there's a very low-frequency noise in my apartment, which I believe is coming from installations or equipment in the building. It can be very disturbing.
