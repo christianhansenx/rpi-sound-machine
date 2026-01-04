@@ -1,9 +1,10 @@
 # Raspberry Pi Sound Machine with Browser Interface
 
 This project turns a Raspberry Pi into a customizable sound machine.<br>
-Users can upload their own sound files and play them through a web interface, creating a personalized soundscape to mask unwanted
+User can upload own sound files and play them through a web interface, creating a personalized soundscape to mask unwanted
  noise or for relaxation.<br>
 The interface allows playing multiple sounds simultaneously.
+The sounds are looping infinitely.
 
 ![sound-machine](sound_machine.jpg)
 
@@ -22,8 +23,8 @@ Connect Raspberry Pi to a loudspeaker (loudspeaker with aux input).<br>
 *Note: in this user guide the Raspberry Pi hostname is **pisound** (it can be any name you choose).*
 
 
-Copy **rpi_sound_machine** folder from this repository to Raspberry Pi device **/home/~**<br>
-ssh into the Raspberry Pi device and **cd** to **/home/~/rpi_sound_machine** folder.
+Copy **rpi_sound_machine** folder from this repository to Raspberry Pi device **/home/~** folder.<br>
+Then ssh into the Raspberry Pi device and **cd** to **/home/~/rpi_sound_machine** folder.
 
 Install necessary applications with:<br>
 ```make install```
@@ -31,13 +32,13 @@ Install necessary applications with:<br>
  and start sound machine service with:<br>
 ```make start-service```
 
-The Raspberry Pi Sound Machine is to be controlled via local network through browser: *pisound:5000*
+The Raspberry Pi Sound Machine is to be controlled via local network through browser: ***pisound:5000***
 
 ### Web Interface
 
 #### Uploading Sounds
 
-1. Click the "Choose Files" button under.
+1. Click the "Choose Files" button in the "Upload Sound Files" section.
 2. Select one or more sound files from your computer.
 3. Click the "Upload" button to upload them to the Raspberry Pi.
 
