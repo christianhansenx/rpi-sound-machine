@@ -50,7 +50,6 @@
                                 {{ sound_file }}
                             </a>
                             <div class="icon-group">
-                                <a href="/toggle_favorite/{{ sound_file }}" class="favorite-toggle">🤍</a>
                                 <input type="checkbox" name="files_to_delete" value="{{ sound_file }}" class="delete-checkbox">
                             </div>
                         </li>
@@ -58,28 +57,6 @@
                     </ul>
                 {% else %}
                     <p>No sound files uploaded.</p>
-                {% endif %}
-            </div>
-
-            <h2>Favorites</h2>
-            <div class="list-section">
-                {% if favorites %}
-                    <ul class="file-list">
-                        {% for sound_file in favorites %}
-                        <li class="file-list-item">
-                            <a href="#" class="file-name-link"
-                                data-file-name="{{ sound_file }}"
-                            >
-                                {{ sound_file }}
-                            </a>
-                            <div class="icon-group">
-                                <a href="/toggle_favorite/{{ sound_file }}" class="favorite-toggle">❤️</a>
-                            </div>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                {% else %}
-                    <p>No favorite sounds yet.</p>
                 {% endif %}
             </div>
         </form>

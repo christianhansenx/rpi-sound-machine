@@ -52,14 +52,6 @@ hr { border: 0; border-top: 1px solid #ccc; margin: 20px 0; }
     align-items: center;
     flex-shrink: 0;
 }
-.favorite-toggle {
-    background: none;
-    border: none;
-    font-size: 20px;
-    cursor: pointer;
-    padding: 0 10px;
-    text-decoration: none;
-}
 .delete-checkbox {
     transform: scale(1.2);
     margin-left: 10px;
