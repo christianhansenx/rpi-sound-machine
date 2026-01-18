@@ -6,7 +6,7 @@ User can upload own sound files and play them through a web interface, creating 
 The interface allows playing multiple sounds simultaneously.
 The sounds are looping infinitely.
 
-![sound-machine](sound_machine.png)
+![sound-machine](sound_machine.jpg)
 
 ## Background idea of this project
 
