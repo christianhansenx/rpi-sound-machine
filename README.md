@@ -46,14 +46,9 @@ I found some good sounds here: [Pixabay Free Sounds](https://pixabay.com/sound-e
 
 #### Playing Sounds
 
-* **Play a sound**: Click on the name of a sound file in either the "Sound Files" or "Favorites" list to start playing it.
+* **Play a sound**: Click on the name of a sound file in the "Sound Files" list to start playing it.
  The sound will loop continuously.
 * **Play multiple sounds**: You can play multiple sounds at the same time by clicking on additional sound files.
-
-#### Favorites
-
-* **Add to favorites**: To add a sound to your favorites, click 🤍 next to the file name.
-* **Remove from favorites**: To remove a sound from your favorites, click ❤️ next to the file name in the "Favorites" list.
 
 #### Controls
 
