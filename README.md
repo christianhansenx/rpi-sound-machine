@@ -87,37 +87,34 @@ To get a list of RPI remote tool commands then execute ```just rpi``` (on the PC
 
 Example of running a command: ```just rpi check```.
 ```
+Python version: 3.13
 Create SSH connection to pi@pisound
 
-== Remote command to RPI: make stop-app
-python developer_tools/application_utilities.py --stop-application
-UTC time: 2025-11-29 12:38:21
-Python version: 3.11
+== Remote command to RPI: make check
+python developer_tools/application_utilities.py --check
+UTC time: 2026-01-18 16:28:47
+Python version: 3.13
+System service "sound-machine.service" status: running
+  ● sound-machine.service - Sound Machine
+       Loaded: loaded (/etc/systemd/system/sound-machine.service; enabled; preset: enabled)
+       Active: active (running) since Sun 2026-01-18 16:28:14 UTC; 33s ago
+   Invocation: 5b5f1252b67e42078ddfa41ee3fa4bfb
+     Main PID: 11990 (sound-machine-s)
+        Tasks: 10 (limit: 759)
+          CPU: 7.995s
+       CGroup: /system.slice/sound-machine.service
+               ├─11990 /bin/bash /usr/local/bin/sound-machine-start.sh
+               ├─11991 /snap/astral-uv/1258/bin/uv run --no-group dev sound_machine.py
+               └─12072 /home/pi/rpi_sound_machine/.venv/bin/python3 sound_machine.py
+
+  Jan 18 16:28:28 pisound sound-machine-start.sh[12072]: UTC time: 2026-01-18 16:28:28
+  Jan 18 16:28:28 pisound sound-machine-start.sh[12072]: Python version: 3.13
+  Jan 18 16:28:28 pisound sound-machine-start.sh[12072]: Volume file not found, using default 0.5
 Running processes of "sound_machine.py":
-  USER      PID %CPU %MEM    VSZ   RSS TTY  STAT START   TIME COMMAND
-  pi     103220  0.4  3.1 217756 28816 ?    Sl   12:36   0:00 /snap/astral-uv/1086/bin/uv run --no-group dev sound_machine.py
-  pi     103251  5.3  4.7 233252 44072 ?    Sl   12:36   0:07 /home/pi/rpi_sound_machine/.venv/bin/python3 sound_machine.py
-Killing process ".venv/bin/python...sound_machine.py". PID(s): 103251
-Failed to kill "sound_machine.py" (PID 103251) with SIGTERM
-Successfully killed PID 103251 with SIGINT
-
-== Remote command to RPI: make kill-tmux
-python developer_tools/application_utilities.py --kill-tmux
-UTC time: 2025-11-29 12:38:25
-Python version: 3.11
-There is no tmux session for "sound" to close!
-
-== Remote command to RPI: make stop-service
-python developer_tools/application_utilities.py --stop-service
-UTC time: 2025-11-29 12:38:25
-Python version: 3.11
-Removing service sound-machine.service
-
-== Remote command to RPI: make start-service
-python developer_tools/application_utilities.py --start-service
-UTC time: 2025-11-29 12:38:28
-Python version: 3.11
-Service "sound-machine.service" has been started successfully!
+  USER         PID %CPU %MEM    VSZ   RSS TTY   STAT START   TIME COMMAND
+  pi         11991 10.8  4.2 613312 39084 ?     Sl   16:28   0:03 /snap/astral-uv/1258/bin/uv run --no-group dev sound_machine.py
+  pi         12072 17.6  5.1 236368 48228 ?     Sl   16:28   0:04 /home/pi/rpi_sound_machine/.venv/bin/python3 sound_machine.py
+Tmux session "sound": session does not exist
 ```
 
 Some of the connections to the RPI are using [tmux](https://github.com/tmux/tmux/wiki) terminal on the RPI.<br>
