@@ -22,7 +22,6 @@ In general the issue about low-frequency hum is a quite widespread problem:
 Connect Raspberry Pi to a loudspeaker (loudspeaker with aux input).<br>
 *Note: in this user guide the Raspberry Pi hostname is **pisound** (it can be any name you choose).*
 
-
 Copy **rpi_sound_machine** folder from this repository to Raspberry Pi device **/home/~** folder.<br>
 Then ssh into the Raspberry Pi device and **cd** to **/home/~/rpi_sound_machine** folder.
 
@@ -39,14 +38,14 @@ The Raspberry Pi Sound Machine is to be controlled via local network through bro
 #### Uploading Sounds
 
 1. Click the "Choose Files" button in the "Upload Sound Files" section.
-2. Select one or more sound files from your computer.
+2. Select one or more sound files from your computer (or smart phone).
 3. Click the "Upload" button to upload them to the Raspberry Pi.
 
 I found some good sounds here: [Pixabay Free Sounds](https://pixabay.com/sound-effects/search/)
 
 #### Playing Sounds
 
-* **Play a sound**: Click on the name of a sound file in the "Sound Files" list to start playing it.
+* **Play a sound**: Click on the name of a listed sound file to start playing it.
  The sound will loop continuously.
 * **Play multiple sounds**: You can play multiple sounds at the same time by clicking on additional sound files.
 
