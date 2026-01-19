@@ -63,14 +63,11 @@ def setup_test_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> d
     from rpi_sound_machine import sound_machine  # noqa: PLC0415 `import` should be at the top-level of a file
     sounds_dir = tmp_path / 'sounds'
     sounds_dir.mkdir()
-    favorites_file = tmp_path / 'favorites.txt'
-    favorites_file.touch()
     volume_file = tmp_path / 'volume.json'
     with volume_file.open('w') as f:
         json.dump({'volume': 0.5}, f)
 
     monkeypatch.setattr(sound_machine, 'SOUND_DIR', sounds_dir)
-    monkeypatch.setattr(sound_machine, 'FAVORITES_FILE', favorites_file)
     monkeypatch.setattr(sound_machine, 'VOLUME_FILE', volume_file)
 
     monkeypatch.setattr(sound_machine.sound_control, 'global_volume', 0.5)
@@ -85,7 +82,6 @@ def setup_test_environment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> d
 
     return {
         'sounds_dir': sounds_dir,
-        'favorites_file': favorites_file,
         'volume_file': volume_file,
         'sound_machine': sound_machine,
     }
@@ -175,23 +171,6 @@ def test_delete_file(client: FlaskClient, setup_test_environment: dict[str, Any]
     response = client.post('/delete_files', data={'files_to_delete': 'test.wav'})
     assert response.status_code == HTTPStatus.FOUND
     assert not (sounds_dir / 'test.wav').exists()
-
-
-def test_toggle_favorite(client: FlaskClient, setup_test_environment: dict[str, Any]) -> None:
-    """Test toggling a favorite."""
-    favorites_file = setup_test_environment['favorites_file']
-
-    # Add to favorites
-    response = client.get('/toggle_favorite/test.wav')
-    assert response.status_code == HTTPStatus.FOUND
-    with favorites_file.open() as f:
-        assert 'test.wav' in f.read()
-
-    # Remove from favorites
-    response = client.get('/toggle_favorite/test.wav')
-    assert response.status_code == HTTPStatus.FOUND
-    with favorites_file.open() as f:
-        assert 'test.wav' not in f.read()
 
 
 def test_set_volume(client: FlaskClient, setup_test_environment: dict[str, Any], mocker: MagicMock) -> None:

@@ -25,8 +25,6 @@ pygame.mixer.set_num_channels(16)
 
 # Define the directory where your sound files are stored
 SOUND_DIR = Path(__file__).parent.parent / 'sounds'
-# Define the path for the favorites file
-FAVORITES_FILE = Path(__file__).parent.parent / 'favorites.txt'
 # Define the path for the volume file
 VOLUME_FILE = Path(__file__).parent.parent / 'volume.json'
 
@@ -83,38 +81,19 @@ class SoundControl:
         self.volume_save_timer = Timer(5.0, self.save_volume)
         self.volume_save_timer.start()
 
-    @staticmethod
-    def get_favorites() -> set[str]:
-        if not FAVORITES_FILE.is_file():
-            return set()
-        with Path.open(FAVORITES_FILE) as f:
-            return {line.strip() for line in f}
-
-    @staticmethod
-    def save_favorites(favorites_set: set[str]) -> None:
-        with Path.open(FAVORITES_FILE, 'w') as f:
-            f.writelines(f'{filename}\n' for filename in sorted(favorites_set))
-
 
 sound_control = SoundControl()
 
 
 @app.route('/')
 def home() -> BaseResponse:
-    all_files = [f.name for f in SOUND_DIR.glob('*') if f.is_file()]
-    favorites_set = sound_control.get_favorites()
-
-    # Separate the files into favorites and non-favorites
-    favorite_files = sorted([f for f in all_files if f in favorites_set])
-    non_favorite_files = sorted([f for f in all_files if f not in favorites_set])
-
+    sound_files = sorted([f.name for f in SOUND_DIR.glob('*') if f.is_file()])
     sound_state = sound_control.get_state_as_dict()
 
     return render_template(
         'index.html',
         sound_state=sound_state,
-        sound_files=non_favorite_files,
-        favorites=favorite_files,
+        sound_files=sound_files,
     )
 
 
@@ -239,7 +218,6 @@ def upload_file() -> BaseResponse:
 def delete_files() -> BaseResponse:
     files_to_delete = request.form.getlist('files_to_delete')
     if files_to_delete:
-        favorites_set = sound_control.get_favorites()
         for filename in files_to_delete:
             file_path = SOUND_DIR / filename
             if file_path.is_file():
@@ -250,22 +228,8 @@ def delete_files() -> BaseResponse:
                         sound_control.current_sounds.remove(filename)
                     file_path.unlink()
                     print(f'Deleted file: {filename}')
-                    if filename in favorites_set:
-                        favorites_set.remove(filename)
                 except OSError as e:
                     print(f'Error deleting file {filename}: {e}')
-        sound_control.save_favorites(favorites_set)
-    return redirect(url_for('home'))
-
-
-@app.route('/toggle_favorite/<sound_file>')
-def toggle_favorite(sound_file: str) -> BaseResponse:
-    favorites_set = sound_control.get_favorites()
-    if sound_file in favorites_set:
-        favorites_set.remove(sound_file)
-    else:
-        favorites_set.add(sound_file)
-    sound_control.save_favorites(favorites_set)
     return redirect(url_for('home'))
 
 
@@ -282,8 +246,6 @@ def main() -> None:
     print()
 
     SOUND_DIR.mkdir(exist_ok=True)
-    if not FAVORITES_FILE.is_file():
-        FAVORITES_FILE.touch()
 
     # Load volume on startup
     sound_control.load_volume()
